@@ -6,9 +6,9 @@
 
 *Coordinate frontier models. Keep token costs low. Ship faster.*
 
-[![npm version](https://img.shields.io/npm/v/featherkit?color=blue&label=npm)](https://www.npmjs.com/package/featherkit)
+[![npm version](https://img.shields.io/npm/v/%401mmutex%2Ffeatherkit?color=blue&label=npm)](https://www.npmjs.com/package/@1mmutex/featherkit)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Node.js](https://img.shields.io/node/v/featherkit?color=brightgreen)](https://nodejs.org)
+[![Node.js](https://img.shields.io/node/v/%401mmutex%2Ffeatherkit?color=brightgreen)](https://nodejs.org)
 [![GitHub stars](https://img.shields.io/github/stars/immutex/featherkit?style=social)](https://github.com/immutex/featherkit)
 
 [Quick Start](#quick-start) · [How It Works](#how-it-works) · [Phase Gates](#deterministic-phase-gates) · [CLI Reference](#cli-reference) · [MCP Tools](#mcp-tools) · [Architecture](#architecture) · [Philosophy](#philosophy)
@@ -111,7 +111,7 @@ Three gates, one command:
 
 ```bash
 # In your project directory:
-npx featherkit init
+npx @1mmutex/featherkit init
 ```
 
 The interactive wizard will ask:
@@ -135,7 +135,7 @@ featherkit task start FEAT-001
 ### Install globally
 
 ```bash
-npm install -g featherkit
+npm install -g @1mmutex/featherkit
 featherkit init
 ```
 
@@ -221,7 +221,7 @@ your-project/
     └── config.json              # Project config (clients, models, integrations)
 ```
 
-**featherkit itself** (`node_modules/featherkit/dist/`):
+**featherkit itself** (`node_modules/@1mmutex/featherkit/dist/`):
 
 ```
 dist/
