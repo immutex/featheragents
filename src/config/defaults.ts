@@ -15,7 +15,7 @@ export const MODEL_PRESETS: Record<string, ModelConfig[]> = {
   balanced: [
     { provider: 'anthropic', model: 'claude-sonnet-4-6', role: 'frame' },
     { provider: 'anthropic', model: 'claude-sonnet-4-6', role: 'build' },
-    { provider: 'openai', model: 'gpt-4.1', role: 'critic' },
+    { provider: 'openai', model: 'gpt-5.4', role: 'critic' },
     { provider: 'anthropic', model: 'claude-haiku-4-5-20251001', role: 'sync' },
   ],
   'low-cost': [
@@ -27,7 +27,7 @@ export const MODEL_PRESETS: Record<string, ModelConfig[]> = {
   'high-quality': [
     { provider: 'anthropic', model: 'claude-opus-4-6', role: 'frame' },
     { provider: 'anthropic', model: 'claude-sonnet-4-6', role: 'build' },
-    { provider: 'openai', model: 'gpt-4.1', role: 'critic' },
+    { provider: 'openai', model: 'gpt-5.4', role: 'critic' },
     { provider: 'anthropic', model: 'claude-sonnet-4-6', role: 'sync' },
   ],
   'local-first': [

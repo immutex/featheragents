@@ -69,9 +69,9 @@ async function buildConfig(cwd: string, options: InitOptions): Promise<FeatherCo
     const presetChoice = await select<string>({
       message: 'Model preset:',
       choices: [
-        { name: 'Balanced  (Sonnet 4.6 frame/build, GPT-4.1 critic, Haiku 4.5 sync)', value: 'balanced' },
+        { name: 'Balanced  (Sonnet 4.6 frame/build, GPT-5.4 critic, Haiku 4.5 sync)', value: 'balanced' },
         { name: 'Low-cost  (Haiku 4.5 frame/critic/sync, Sonnet 4.6 build)', value: 'low-cost' },
-        { name: 'High-quality  (Opus 4.6 frame, Sonnet 4.6 build, GPT-4.1 critic)', value: 'high-quality' },
+        { name: 'High-quality  (Opus 4.6 frame, Sonnet 4.6 build, GPT-5.4 critic)', value: 'high-quality' },
         { name: 'Local-first  (Qwen3 via Ollama, no API costs)', value: 'local-first' },
         { name: 'Manual — configure each role', value: 'manual' },
       ],
