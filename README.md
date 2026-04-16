@@ -143,9 +143,9 @@ featherkit init
 
 | Preset | Frame | Build | Critic | Sync |
 |--------|-------|-------|--------|------|
-| `balanced` | Sonnet | Sonnet | o3-mini | Haiku |
-| `low-cost` | Haiku | Sonnet | Haiku | Haiku |
-| `high-quality` | Opus | Sonnet | o3 | Sonnet |
+| `balanced` | Sonnet 4.6 | Sonnet 4.6 | GPT-4.1 | Haiku 4.5 |
+| `low-cost` | Haiku 4.5 | Sonnet 4.6 | Haiku 4.5 | Haiku 4.5 |
+| `high-quality` | Opus 4.6 | Sonnet 4.6 | GPT-4.1 | Sonnet 4.6 |
 | `local-first` | Qwen3 (Ollama) | Qwen3 | Qwen3 | Qwen3 |
 | `manual` | you choose | you choose | you choose | you choose |
 

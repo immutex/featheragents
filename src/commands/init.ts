@@ -69,9 +69,9 @@ async function buildConfig(cwd: string, options: InitOptions): Promise<FeatherCo
     const presetChoice = await select<string>({
       message: 'Model preset:',
       choices: [
-        { name: 'Balanced  (Sonnet for frame/build, o3 critic, Haiku sync)', value: 'balanced' },
-        { name: 'Low-cost  (Haiku frame/critic/sync, Sonnet build)', value: 'low-cost' },
-        { name: 'High-quality  (Opus frame, Sonnet build, o3 critic)', value: 'high-quality' },
+        { name: 'Balanced  (Sonnet 4.6 frame/build, GPT-4.1 critic, Haiku 4.5 sync)', value: 'balanced' },
+        { name: 'Low-cost  (Haiku 4.5 frame/critic/sync, Sonnet 4.6 build)', value: 'low-cost' },
+        { name: 'High-quality  (Opus 4.6 frame, Sonnet 4.6 build, GPT-4.1 critic)', value: 'high-quality' },
         { name: 'Local-first  (Qwen3 via Ollama, no API costs)', value: 'local-first' },
         { name: 'Manual — configure each role', value: 'manual' },
       ],
@@ -139,8 +139,8 @@ async function promptManualModels(): Promise<ModelConfig[]> {
 
   for (const role of roles) {
     const modelStr = await input({
-      message: `Model for ${role} (provider/model, e.g. anthropic/claude-sonnet-4):`,
-      default: 'anthropic/claude-sonnet-4-20250514',
+      message: `Model for ${role} (provider/model, e.g. anthropic/claude-sonnet-4-6):`,
+      default: 'anthropic/claude-sonnet-4-6',
     });
     const [provider, ...rest] = modelStr.split('/');
     models.push({
