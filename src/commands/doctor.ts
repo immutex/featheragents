@@ -115,12 +115,19 @@ export async function runDoctor(cwd: string): Promise<boolean> {
         }
       }
 
-      // 4. MCP server entry point exists
-      const serverPath = join(cwd, 'node_modules', 'featherkit', 'dist', 'server.js');
-      if (existsSync(serverPath)) {
-        results.push(pass('MCP server (node_modules/@1mmutex/featherkit/dist/server.js)'));
+      // 4. npx is available (MCP server is invoked via npx, no local install needed)
+      const { execSync } = await import('child_process');
+      let npxOk = false;
+      try {
+        execSync('npx --version', { stdio: 'ignore' });
+        npxOk = true;
+      } catch {
+        npxOk = false;
+      }
+      if (npxOk) {
+        results.push(pass('MCP server — runs via npx (no local install required)'));
       } else {
-        results.push(fail('MCP server', 'node_modules/@1mmutex/featherkit/dist/server.js not found. Run `npm install featherkit`.'));
+        results.push(fail('MCP server', '`npx` not found in PATH. Install Node.js 22+.'));
       }
 
       // 6. Required project-docs files exist

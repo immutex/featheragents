@@ -229,11 +229,9 @@ describe('runDoctor', () => {
     // Scaffold everything
     await scaffoldFiles(tmpDir, config, false);
 
-    // runDoctor checks for .opencode MCP entry — opencode.json is created by scaffoldFiles
-    // But it also checks node_modules/featherkit/dist/server.js which won't exist in test env.
-    // That's a real check that intentionally fails outside a real install.
+    // runDoctor checks for .opencode MCP entry — opencode.json is created by scaffoldFiles.
+    // The MCP server check now verifies npx is in PATH (always true in test env).
     const result = await runDoctor(tmpDir);
-    // We expect false because node_modules/featherkit isn't installed in the tmp dir
     expect(typeof result).toBe('boolean');
   });
 
