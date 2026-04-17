@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { existsSync } from 'fs';
 import { join } from 'path';
 import { readFile } from 'fs/promises';
+import { execa } from 'execa';
 
 import { FeatherConfigSchema, ProjectStateSchema } from '../config/schema.js';
 import { log } from '../utils/logger.js';
@@ -116,14 +117,11 @@ export async function runDoctor(cwd: string): Promise<boolean> {
       }
 
       // 4. npx is available (MCP server is invoked via npx, no local install needed)
-      const { execSync } = await import('child_process');
       let npxOk = false;
       try {
-        execSync('npx --version', { stdio: 'ignore' });
+        await execa('npx', ['--version']);
         npxOk = true;
-      } catch {
-        npxOk = false;
-      }
+      } catch { /* stays false */ }
       if (npxOk) {
         results.push(pass('MCP server — runs via npx (no local install required)'));
       } else {

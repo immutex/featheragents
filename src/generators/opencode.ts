@@ -1,5 +1,4 @@
 import { readFile, writeFile, mkdir } from 'fs/promises';
-import { existsSync } from 'fs';
 import { join, dirname } from 'path';
 import type { FeatherConfig } from '../config/schema.js';
 import { deepMerge } from './claude-code.js';
@@ -31,13 +30,11 @@ export async function generateOpenCodeConfig(cwd: string, config: FeatherConfig)
   const configPath = join(cwd, CONFIG_PATH);
 
   let existing: Record<string, unknown> = {};
-  if (existsSync(configPath)) {
-    try {
-      const raw = await readFile(configPath, 'utf8');
-      existing = JSON.parse(raw) as Record<string, unknown>;
-    } catch {
-      existing = {};
-    }
+  try {
+    const raw = await readFile(configPath, 'utf8');
+    existing = JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    existing = {};
   }
 
   const merged = deepMerge(existing, buildMcpEntry(config));

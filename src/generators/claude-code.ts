@@ -1,5 +1,4 @@
 import { readFile, writeFile, mkdir } from 'fs/promises';
-import { existsSync } from 'fs';
 import { join, dirname } from 'path';
 import type { FeatherConfig } from '../config/schema.js';
 
@@ -50,36 +49,25 @@ export async function generateClaudeCodeConfig(cwd: string, config?: FeatherConf
   const settingsPath = join(cwd, SETTINGS_PATH);
 
   let existing: Record<string, unknown> = {};
-  if (existsSync(settingsPath)) {
-    try {
-      const raw = await readFile(settingsPath, 'utf8');
-      existing = JSON.parse(raw) as Record<string, unknown>;
-    } catch {
-      existing = {};
-    }
+  try {
+    const raw = await readFile(settingsPath, 'utf8');
+    existing = JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    existing = {};
   }
 
-  const mcpServers: Record<string, unknown> = {
-    featherkit: FEATHERKIT_MCP_ENTRY,
-  };
+  const mcpServers: Record<string, unknown> = { featherkit: FEATHERKIT_MCP_ENTRY };
+  const allow = ['mcp__featherkit__*'];
 
   if (config?.integrations.context7) {
     mcpServers['context7'] = CONTEXT7_MCP_ENTRY;
+    allow.push('mcp__context7__*');
   }
 
   const incoming: Record<string, unknown> = {
     mcpServers,
-    permissions: {
-      allow: ['mcp__featherkit__*'],
-    },
+    permissions: { allow },
   };
-
-  if (config?.integrations.context7) {
-    (incoming.permissions as Record<string, unknown>)['allow'] = [
-      'mcp__featherkit__*',
-      'mcp__context7__*',
-    ];
-  }
 
   const merged = deepMerge(existing, incoming);
 

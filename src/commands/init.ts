@@ -162,14 +162,12 @@ export async function scaffoldFiles(
 
   for (const { relativePath, content, managed } of templates) {
     const fullPath = join(cwd, relativePath);
-    const exists = existsSync(fullPath);
 
     if (managed || force) {
-      // Managed files (skills, agents) are always kept current.
-      // --force overwrites everything else too.
+      const alreadyExisted = managed && !force && existsSync(fullPath);
       await mkdir(dirname(fullPath), { recursive: true });
       await writeFile(fullPath, content, 'utf8');
-      if (exists && !force) {
+      if (alreadyExisted) {
         updated.push(relativePath);
       } else {
         created.push(relativePath);
