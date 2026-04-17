@@ -188,20 +188,18 @@ describe('generateOpenCodeConfig', () => {
     const raw = await readFile(join(tmpDir, '.opencode', 'opencode.json'), 'utf8');
     const parsed = JSON.parse(raw);
     expect(parsed.mcp?.featherkit?.command).toBe('node');
-    expect(parsed.mcp?.featherkit?.type).toBe('local');
+    expect(parsed.mcp?.featherkit?.type).toBeUndefined();
     expect(parsed.mcp?.featherkit?.args).toContain(
       './node_modules/@1mmutex/featherkit/dist/server.js'
     );
   });
 
-  it('includes agent definitions', async () => {
+  it('does not include an agents block (agents live in .opencode/agents/*.md)', async () => {
     const config = defaultConfig('test');
     await generateOpenCodeConfig(tmpDir, config);
     const raw = await readFile(join(tmpDir, '.opencode', 'opencode.json'), 'utf8');
     const parsed = JSON.parse(raw);
-    expect(parsed.agents?.builder).toBeDefined();
-    expect(parsed.agents?.critic).toBeDefined();
-    expect(parsed.agents?.syncer).toBeDefined();
+    expect(parsed.agents).toBeUndefined();
   });
 
   it('preserves existing settings on merge', async () => {

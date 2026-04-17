@@ -2,9 +2,6 @@ import { readFile, writeFile, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join, dirname } from 'path';
 import type { FeatherConfig } from '../config/schema.js';
-import { renderBuilderAgent } from '../templates/opencode/agents/builder.js';
-import { renderCriticAgent } from '../templates/opencode/agents/critic.js';
-import { renderSyncerAgent } from '../templates/opencode/agents/syncer.js';
 import { deepMerge } from './claude-code.js';
 
 const CONFIG_PATH = '.opencode/opencode.json';
@@ -13,7 +10,6 @@ function buildMcpEntry(): Record<string, unknown> {
   return {
     mcp: {
       featherkit: {
-        type: 'local',
         command: 'node',
         args: ['./node_modules/@1mmutex/featherkit/dist/server.js'],
       },
@@ -21,33 +17,7 @@ function buildMcpEntry(): Record<string, unknown> {
   };
 }
 
-function buildAgentEntry(config: FeatherConfig): Record<string, unknown> {
-  const buildModel = config.models.find((m) => m.role === 'build');
-  const criticModel = config.models.find((m) => m.role === 'critic');
-  const syncModel = config.models.find((m) => m.role === 'sync');
-
-  return {
-    agents: {
-      builder: {
-        description: 'Build agent — implements tasks',
-        ...(buildModel ? { model: `${buildModel.provider}/${buildModel.model}` } : {}),
-        system: renderBuilderAgent(config),
-      },
-      critic: {
-        description: 'Critic agent — reviews diffs against done criteria',
-        ...(criticModel ? { model: `${criticModel.provider}/${criticModel.model}` } : {}),
-        system: renderCriticAgent(config),
-      },
-      syncer: {
-        description: 'Sync agent — writes self-contained handoffs',
-        ...(syncModel ? { model: `${syncModel.provider}/${syncModel.model}` } : {}),
-        system: renderSyncerAgent(config),
-      },
-    },
-  };
-}
-
-export async function generateOpenCodeConfig(cwd: string, config: FeatherConfig): Promise<void> {
+export async function generateOpenCodeConfig(cwd: string, _config: FeatherConfig): Promise<void> {
   const configPath = join(cwd, CONFIG_PATH);
 
   let existing: Record<string, unknown> = {};
@@ -60,8 +30,7 @@ export async function generateOpenCodeConfig(cwd: string, config: FeatherConfig)
     }
   }
 
-  const incoming = deepMerge(buildMcpEntry(), buildAgentEntry(config));
-  const merged = deepMerge(existing, incoming);
+  const merged = deepMerge(existing, buildMcpEntry());
 
   await mkdir(dirname(configPath), { recursive: true });
   await writeFile(configPath, JSON.stringify(merged, null, 2) + '\n', 'utf8');

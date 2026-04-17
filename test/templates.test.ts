@@ -181,11 +181,9 @@ describe('renderOpenCodeConfig', () => {
     expect(parsed.mcp.featherkit.args).toContain('./node_modules/@1mmutex/featherkit/dist/server.js');
   });
 
-  it('includes agent definitions', () => {
+  it('does not include an agents block (agents live in .opencode/agents/*.md)', () => {
     const parsed = JSON.parse(renderOpenCodeConfig(makeConfig()));
-    expect(parsed.agents?.builder).toBeDefined();
-    expect(parsed.agents?.critic).toBeDefined();
-    expect(parsed.agents?.syncer).toBeDefined();
+    expect(parsed.agents).toBeUndefined();
   });
 });
 
