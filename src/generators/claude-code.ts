@@ -17,6 +17,27 @@ const CONTEXT7_MCP_ENTRY = {
   args: ['-y', '@upstash/context7-mcp@latest'],
 };
 
+const LINEAR_MCP_ENTRY = {
+  type: 'http',
+  url: 'https://mcp.linear.app/mcp',
+};
+
+const GITHUB_MCP_ENTRY = {
+  type: 'http',
+  url: 'https://api.githubcopilot.com/mcp/',
+  headers: {
+    Authorization: 'Bearer ${GITHUB_PERSONAL_ACCESS_TOKEN}',
+  },
+};
+
+const WEB_SEARCH_MCP_ENTRY = {
+  command: 'npx',
+  args: ['-y', '@brave/brave-search-mcp-server', '--transport', 'stdio'],
+  env: {
+    BRAVE_API_KEY: '${BRAVE_API_KEY}',
+  },
+};
+
 /**
  * Recursively deep-merge `source` into `target`.
  * Objects are merged key-by-key; arrays and primitives replace.
@@ -55,6 +76,21 @@ export async function generateClaudeCodeConfig(cwd: string, config?: FeatherConf
   if (config?.integrations.context7) {
     mcpServers['context7'] = CONTEXT7_MCP_ENTRY;
     allow.push('mcp__context7__*');
+  }
+
+  if (config?.integrations.linear) {
+    mcpServers['linear'] = LINEAR_MCP_ENTRY;
+    allow.push('mcp__linear__*');
+  }
+
+  if (config?.integrations.github) {
+    mcpServers['github'] = GITHUB_MCP_ENTRY;
+    allow.push('mcp__github__*');
+  }
+
+  if (config?.integrations.webSearch) {
+    mcpServers['brave-search'] = WEB_SEARCH_MCP_ENTRY;
+    allow.push('mcp__brave-search__*');
   }
 
   // Write MCP servers to .mcp.json (project root — picked up by claude mcp list and sessions)

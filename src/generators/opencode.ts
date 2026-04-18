@@ -20,6 +20,30 @@ function buildMcpEntry(config: FeatherConfig): Record<string, unknown> {
     };
   }
 
+  if (config.integrations.linear) {
+    mcp['linear'] = {
+      type: 'remote',
+      url: 'https://mcp.linear.app/mcp',
+    };
+  }
+
+  if (config.integrations.github) {
+    mcp['github'] = {
+      type: 'remote',
+      url: 'https://api.githubcopilot.com/mcp/',
+    };
+  }
+
+  if (config.integrations.webSearch) {
+    mcp['brave-search'] = {
+      type: 'local',
+      command: ['npx', '-y', '@brave/brave-search-mcp-server', '--transport', 'stdio'],
+      environment: {
+        BRAVE_API_KEY: '${BRAVE_API_KEY}',
+      },
+    };
+  }
+
   return {
     $schema: 'https://opencode.ai/config.json',
     mcp,
