@@ -85,16 +85,17 @@ async function buildConfig(cwd: string, options: InitOptions): Promise<FeatherCo
   }
 
   // 4. Integrations
-  let integrations = { linear: false, github: false, context7: false, webSearch: false };
+  let integrations = { linear: false, github: false, context7: false, webSearch: false, playwright: false };
 
   if (!options.localOnly) {
     const selected = await checkbox({
       message: 'Enable integrations (space to toggle, enter to confirm):',
       choices: [
-        { name: 'Linear (issue tracker)', value: 'linear' },
-        { name: 'GitHub (PR/issue tools)', value: 'github' },
-        { name: 'Context7 (library docs)', value: 'context7' },
-        { name: 'Web Search', value: 'webSearch' },
+        { name: 'Linear       — issue tracker MCP (OAuth, no key needed)', value: 'linear' },
+        { name: 'GitHub       — PR/issue tools (needs GITHUB_PERSONAL_ACCESS_TOKEN)', value: 'github' },
+        { name: 'Context7     — live library docs (free, no key)', value: 'context7' },
+        { name: 'Web Search   — Tavily search (free tier, needs TAVILY_API_KEY)', value: 'webSearch' },
+        { name: 'Playwright   — browser automation & UI testing (free, no key)', value: 'playwright' },
       ],
     });
     for (const key of selected) {

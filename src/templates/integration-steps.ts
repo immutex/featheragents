@@ -26,6 +26,19 @@ const WEBSEARCH: Record<'frame' | 'build', string> = {
   build: `- Use web search to investigate unfamiliar errors or library behaviours before spending time on guesswork.`,
 };
 
+const PLAYWRIGHT: Record<'build' | 'critic', string> = {
+  build: `- After implementing UI changes, use Playwright to verify the affected pages render correctly:
+  1. \`mcp__playwright__browser_navigate\` to the relevant page
+  2. \`mcp__playwright__browser_snapshot\` to inspect the accessibility tree
+  3. \`mcp__playwright__browser_click\` / \`mcp__playwright__browser_fill\` to exercise interactive elements
+  Include a brief note in your progress log confirming the browser check passed.`,
+  critic: `- Smoke-test the implementation in the browser before approving:
+  1. \`mcp__playwright__browser_navigate\` to the affected page(s)
+  2. \`mcp__playwright__browser_snapshot\` — confirm key elements are present and correct
+  3. Exercise any changed interactions (forms, buttons, navigation)
+  Add a "Browser verified" or "Browser: <issue>" line to your review notes.`,
+};
+
 /**
  * Returns an "## Integration steps" section for the given role, populated
  * only with the integrations that are actually enabled in config.
@@ -47,6 +60,10 @@ export function integrationSteps(config: FeatherConfig, role: Role): string {
     blocks.push(`**Web search**\n${WEBSEARCH[role]}`);
   }
 
+  if (config.integrations.playwright && (role === 'build' || role === 'critic')) {
+    blocks.push(`**Playwright**\n${PLAYWRIGHT[role]}`);
+  }
+
   if (blocks.length === 0) return '';
 
   return `\n---\n\n## Integration steps\n\n${blocks.join('\n\n')}\n`;
@@ -60,7 +77,8 @@ export function integrationHint(name: string): string {
     linear: '**Linear** — update ticket status at each phase (In Progress → In Review → Done)',
     github: '**GitHub** — link issues in commits, post findings on PRs',
     context7: '**Context7** — fetch live library docs during frame and build',
-    webSearch: '**Web search** — validate technical decisions during frame and build',
+    webSearch: '**Web search (Tavily)** — validate technical decisions during frame and build',
+    playwright: '**Playwright** — browser-verify UI changes during build; smoke-test during critic',
   };
   return hints[name] ?? `- ${name}`;
 }

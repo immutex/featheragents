@@ -32,10 +32,15 @@ const GITHUB_MCP_ENTRY = {
 
 const WEB_SEARCH_MCP_ENTRY = {
   command: 'npx',
-  args: ['-y', '@brave/brave-search-mcp-server', '--transport', 'stdio'],
+  args: ['-y', 'tavily-mcp@latest'],
   env: {
-    BRAVE_API_KEY: '${BRAVE_API_KEY}',
+    TAVILY_API_KEY: '${TAVILY_API_KEY}',
   },
+};
+
+const PLAYWRIGHT_MCP_ENTRY = {
+  command: 'npx',
+  args: ['@playwright/mcp@latest'],
 };
 
 /**
@@ -89,11 +94,18 @@ export async function generateClaudeCodeConfig(cwd: string, config?: FeatherConf
   }
 
   if (config?.integrations.webSearch) {
-    mcpServers['brave-search'] = WEB_SEARCH_MCP_ENTRY;
-    allow.push('mcp__brave-search__*');
+    mcpServers['tavily'] = WEB_SEARCH_MCP_ENTRY;
+    allow.push('mcp__tavily__*');
+  }
+
+  if (config?.integrations.playwright) {
+    mcpServers['playwright'] = PLAYWRIGHT_MCP_ENTRY;
+    allow.push('mcp__playwright__*');
   }
 
   // Write MCP servers to .mcp.json (project root — picked up by claude mcp list and sessions)
+  // Preserve user-added custom servers, but always replace featherkit-managed ones.
+  const MANAGED_KEYS = new Set(['featherkit', 'context7', 'linear', 'github', 'tavily', 'brave-search', 'playwright']);
   const mcpJsonPath = join(cwd, MCP_JSON_PATH);
   let existingMcp: Record<string, unknown> = {};
   try {
@@ -102,8 +114,13 @@ export async function generateClaudeCodeConfig(cwd: string, config?: FeatherConf
   } catch {
     existingMcp = {};
   }
-  const mergedMcp = deepMerge(existingMcp, { mcpServers });
-  await writeFile(mcpJsonPath, JSON.stringify(mergedMcp, null, 2) + '\n', 'utf8');
+  const existingServers = (existingMcp['mcpServers'] ?? {}) as Record<string, unknown>;
+  const userServers = Object.fromEntries(
+    Object.entries(existingServers).filter(([k]) => !MANAGED_KEYS.has(k))
+  );
+  // Replace mcpServers entirely (don't deep-merge — that would re-add stale keys)
+  const updatedMcp = { ...existingMcp, mcpServers: { ...userServers, ...mcpServers } };
+  await writeFile(mcpJsonPath, JSON.stringify(updatedMcp, null, 2) + '\n', 'utf8');
 
   // Write permissions to .claude/settings.local.json
   const settingsPath = join(cwd, SETTINGS_PATH);

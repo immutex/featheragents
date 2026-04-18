@@ -18,6 +18,7 @@ export const IntegrationsSchema = z.object({
   github: z.boolean(),
   context7: z.boolean(),
   webSearch: z.boolean(),
+  playwright: z.boolean(),
 });
 export type Integrations = z.infer<typeof IntegrationsSchema>;
 

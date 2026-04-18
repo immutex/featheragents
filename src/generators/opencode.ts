@@ -35,12 +35,19 @@ function buildMcpEntry(config: FeatherConfig): Record<string, unknown> {
   }
 
   if (config.integrations.webSearch) {
-    mcp['brave-search'] = {
+    mcp['tavily'] = {
       type: 'local',
-      command: ['npx', '-y', '@brave/brave-search-mcp-server', '--transport', 'stdio'],
+      command: ['npx', '-y', 'tavily-mcp@latest'],
       environment: {
-        BRAVE_API_KEY: '${BRAVE_API_KEY}',
+        TAVILY_API_KEY: '${TAVILY_API_KEY}',
       },
+    };
+  }
+
+  if (config.integrations.playwright) {
+    mcp['playwright'] = {
+      type: 'local',
+      command: ['npx', '@playwright/mcp@latest'],
     };
   }
 

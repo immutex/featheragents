@@ -8,6 +8,7 @@ export const DEFAULT_INTEGRATIONS: Integrations = {
   github: false,
   context7: false,
   webSearch: false,
+  playwright: false,
 };
 
 // Curated catalog of recent, coding-capable models
