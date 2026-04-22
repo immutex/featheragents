@@ -123,6 +123,66 @@ describe('saveState', () => {
     expect(loaded.tasks[0]!.progress).toHaveLength(1);
   });
 
+  it('round-trips task orchestrator metadata', async () => {
+    const state = freshState();
+    state.currentTask = 'ORCH-001';
+    state.tasks.push({
+      id: 'ORCH-001',
+      title: 'Round trip orchestrator task metadata',
+      status: 'active',
+      sessionId: 'session-abc',
+      phaseCompletions: [
+        {
+          phase: 'build',
+          verdict: 'pass',
+          summary: 'Schema and tool updates complete',
+          completedAt: new Date().toISOString(),
+          durationSeconds: 12,
+        },
+      ],
+      approvals: [
+        {
+          phase: 'frame',
+          approvedAt: new Date().toISOString(),
+          modified: true,
+          mode: 'inline',
+        },
+      ],
+      orchestratorLock: {
+        holderPid: 321,
+        acquiredAt: new Date().toISOString(),
+        heartbeatAt: new Date().toISOString(),
+      },
+      progress: [{ timestamp: new Date().toISOString(), role: 'build', message: 'started' }],
+    });
+
+    await saveState(state, undefined, tmpDir);
+    const loaded = await loadState(undefined, tmpDir);
+    const task = loaded.tasks[0];
+
+    expect(task?.sessionId).toBe('session-abc');
+    expect(task?.phaseCompletions?.[0]?.phase).toBe('build');
+    expect(task?.phaseCompletions?.[0]?.durationSeconds).toBe(12);
+    expect(task?.approvals?.[0]?.mode).toBe('inline');
+    expect(task?.orchestratorLock?.holderPid).toBe(321);
+  });
+
+  it('round-trips project orchestrator state', async () => {
+    const state = freshState();
+    state.orchestrator = {
+      status: 'awaiting-approval',
+      pid: 4321,
+      startedAt: new Date().toISOString(),
+      heartbeatAt: new Date().toISOString(),
+    };
+
+    await saveState(state, undefined, tmpDir);
+    const loaded = await loadState(undefined, tmpDir);
+
+    expect(loaded.orchestrator?.status).toBe('awaiting-approval');
+    expect(loaded.orchestrator?.pid).toBe(4321);
+  });
+
   it('updates lastUpdated on save', async () => {
     const state = freshState();
     state.lastUpdated = '1970-01-01T00:00:00.000Z';
@@ -176,6 +236,18 @@ describe('loadConfig (state-io)', () => {
     const loaded = await loadConfig(tmpDir);
     expect(loaded).not.toBeNull();
     expect(loaded?.projectName).toBe('state-io-test');
+  });
+
+  it('fills orchestrator defaults for legacy config files without the block', async () => {
+    const configDir = join(tmpDir, 'featherkit');
+    await mkdir(configDir, { recursive: true });
+
+    const { orchestrator: _orchestrator, ...legacyConfig } = defaultConfig('legacy-state-io-test');
+    await writeFile(join(configDir, 'config.json'), JSON.stringify(legacyConfig), 'utf8');
+
+    const loaded = await loadConfig(tmpDir);
+    expect(loaded?.orchestrator.enabled).toBe(false);
+    expect(loaded?.orchestrator.timeouts.idleHeartbeatMinutes).toBe(5);
   });
 
   it('returns null on invalid config JSON', async () => {

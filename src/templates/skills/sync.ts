@@ -67,6 +67,20 @@ Your handoff notes should be self-contained. Use this structure:
 
 Print "Handoff written: <from> → <to>" and stop.
 
+${steps}
+
+### Final step — signal completion
+
+After all other steps are done, call:
+
+\`\`\`
+mcp__featherkit__mark_phase_complete {
+  taskId: "<id>",
+  phase: "sync",
+  summary: "<1–3 sentence summary of what was done>"
+}
+\`\`\`
+
 ---
 
 ## Hard rules
@@ -91,5 +105,5 @@ Print "Handoff written: <from> → <to>" and stop.
 - \`get_task\` and \`get_active_focus\` together give full context — don't read source files during sync
 - One \`write_handoff\` call is all you need — it updates both state and latest-handoff.md
 - Keep handoff notes compact — the next role will read the source files themselves
-${steps}`;
+`;
 }

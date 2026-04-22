@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "projectName": "featheragents",
+  "clients": "both",
+  "models": [
+    {
+      "provider": "anthropic",
+      "model": "claude-sonnet-4-6",
+      "role": "frame"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.4",
+      "role": "build"
+    },
+    {
+      "provider": "openrouter",
+      "model": "z-ai/glm-5.1",
+      "role": "critic"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.4-mini",
+      "role": "sync"
+    }
+  ],
+  "packages": [],
+  "integrations": {
+    "linear": false,
+    "github": true,
+    "context7": true,
+    "webSearch": true,
+    "playwright": true
+  },
+  "stateDir": ".project-state",
+  "docsDir": "project-docs",
+  "orchestrator": {
+    "enabled": false,
+    "mode": "manual",
+    "claudeCodeBinary": "claude",
+    "router": {
+      "enabled": true,
+      "model": "haiku",
+      "timeoutMs": 60000
+    },
+    "timeouts": {
+      "phaseMinutes": 30,
+      "idleHeartbeatMinutes": 5
+    },
+    "approvalGate": {
+      "frame": "editor",
+      "sync": "prompt"
+    },
+    "tui": {
+      "enabled": true,
+      "maxStreamLines": 40
+    }
+  }
+}

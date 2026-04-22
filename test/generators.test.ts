@@ -92,11 +92,10 @@ describe('generateClaudeCodeConfig', () => {
 
   it('registers featherkit MCP server via npx', async () => {
     await generateClaudeCodeConfig(tmpDir);
-    const raw = await readFile(join(tmpDir, '.claude', 'settings.local.json'), 'utf8');
+    const raw = await readFile(join(tmpDir, '.mcp.json'), 'utf8');
     const parsed = JSON.parse(raw);
-    expect(parsed.mcpServers?.featherkit?.command).toBe('npx');
-    expect(parsed.mcpServers?.featherkit?.args).toContain('featherkit-mcp');
-    expect(parsed.mcpServers?.featherkit?.args).toContain('@1mmutex/featherkit');
+    expect(parsed.mcpServers?.featherkit?.command).toBe('node');
+    expect(parsed.mcpServers?.featherkit?.args).toContain('./node_modules/@1mmutex/featherkit/dist/server.js');
   });
 
   it('adds mcp__featherkit__* to permissions.allow', async () => {
@@ -110,25 +109,25 @@ describe('generateClaudeCodeConfig', () => {
     const config = defaultConfig('test');
     config.integrations.context7 = true;
     await generateClaudeCodeConfig(tmpDir, config);
-    const parsed = JSON.parse(await readFile(join(tmpDir, '.claude', 'settings.local.json'), 'utf8'));
+    const parsed = JSON.parse(await readFile(join(tmpDir, '.mcp.json'), 'utf8'));
     expect(parsed.mcpServers?.context7).toBeDefined();
     expect(parsed.mcpServers?.context7?.args).toContain('@upstash/context7-mcp@latest');
-    expect(parsed.permissions?.allow).toContain('mcp__context7__*');
+    const settings = JSON.parse(await readFile(join(tmpDir, '.claude', 'settings.local.json'), 'utf8'));
+    expect(settings.permissions?.allow).toContain('mcp__context7__*');
   });
 
   it('does not register context7 when integration is disabled', async () => {
     const config = defaultConfig('test');
     config.integrations.context7 = false;
     await generateClaudeCodeConfig(tmpDir, config);
-    const parsed = JSON.parse(await readFile(join(tmpDir, '.claude', 'settings.local.json'), 'utf8'));
+    const parsed = JSON.parse(await readFile(join(tmpDir, '.mcp.json'), 'utf8'));
     expect(parsed.mcpServers?.context7).toBeUndefined();
   });
 
   it('preserves existing MCP servers', async () => {
-    const claudeDir = join(tmpDir, '.claude');
-    await mkdir(claudeDir, { recursive: true });
+    await mkdir(tmpDir, { recursive: true });
     await writeFile(
-      join(claudeDir, 'settings.local.json'),
+      join(tmpDir, '.mcp.json'),
       JSON.stringify({
         mcpServers: { other: { command: 'python', args: ['-m', 'other'] } },
       }),
@@ -137,7 +136,7 @@ describe('generateClaudeCodeConfig', () => {
 
     await generateClaudeCodeConfig(tmpDir);
 
-    const raw = await readFile(join(claudeDir, 'settings.local.json'), 'utf8');
+    const raw = await readFile(join(tmpDir, '.mcp.json'), 'utf8');
     const parsed = JSON.parse(raw);
     expect(parsed.mcpServers?.other).toBeDefined();
     expect(parsed.mcpServers?.featherkit).toBeDefined();
@@ -199,15 +198,15 @@ describe('generateOpenCodeConfig', () => {
     expect(raw).toBeTruthy();
   });
 
-  it('registers featherkit MCP server via npx', async () => {
+  it('registers featherkit MCP server via node', async () => {
     const config = defaultConfig('test');
     await generateOpenCodeConfig(tmpDir, config);
     const raw = await readFile(join(tmpDir, '.opencode', 'opencode.json'), 'utf8');
     const parsed = JSON.parse(raw);
     expect(parsed.mcp?.featherkit?.type).toBe('local');
     expect(Array.isArray(parsed.mcp?.featherkit?.command)).toBe(true);
-    expect(parsed.mcp?.featherkit?.command).toContain('npx');
-    expect(parsed.mcp?.featherkit?.command).toContain('featherkit-mcp');
+    expect(parsed.mcp?.featherkit?.command).toContain('node');
+    expect(parsed.mcp?.featherkit?.command).toContain('./node_modules/@1mmutex/featherkit/dist/server.js');
   });
 
   it('registers context7 as remote MCP when integration is enabled', async () => {
@@ -282,9 +281,13 @@ describe('runMcpInstall', () => {
     await writeConfig(tmpDir, 'claude-code');
     await runMcpInstall(tmpDir);
     const settings = join(tmpDir, '.claude', 'settings.local.json');
+    const mcpJson = join(tmpDir, '.mcp.json');
     expect(existsSync(settings)).toBe(true);
+    expect(existsSync(mcpJson)).toBe(true);
     const parsed = JSON.parse(await readFile(settings, 'utf8'));
-    expect(parsed.mcpServers?.featherkit).toBeDefined();
+    expect(parsed.permissions?.allow).toContain('mcp__featherkit__*');
+    const mcpParsed = JSON.parse(await readFile(mcpJson, 'utf8'));
+    expect(mcpParsed.mcpServers?.featherkit).toBeDefined();
     expect(existsSync(join(tmpDir, '.opencode', 'opencode.json'))).toBe(false);
   });
 
@@ -302,6 +305,7 @@ describe('runMcpInstall', () => {
     await writeConfig(tmpDir, 'both');
     await runMcpInstall(tmpDir);
     expect(existsSync(join(tmpDir, '.claude', 'settings.local.json'))).toBe(true);
+    expect(existsSync(join(tmpDir, '.mcp.json'))).toBe(true);
     expect(existsSync(join(tmpDir, '.opencode', 'opencode.json'))).toBe(true);
   });
 
@@ -309,4 +313,3 @@ describe('runMcpInstall', () => {
     await expect(runMcpInstall(tmpDir)).rejects.toThrow();
   });
 });
-

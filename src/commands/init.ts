@@ -104,13 +104,10 @@ async function buildConfig(cwd: string, options: InitOptions): Promise<FeatherCo
   }
 
   const config: FeatherConfig = {
-    version: 1,
-    projectName,
+    ...defaultConfig(projectName, options.preset),
     clients,
     models,
     integrations,
-    stateDir: '.project-state',
-    docsDir: 'project-docs',
   };
 
   // 5. Confirm

@@ -64,6 +64,18 @@ mcp__featherkit__verify_phase  { phase: "build", taskId: "<id>" }
 
 This catches mechanical problems (TypeScript, test failures, scope creep) before they waste tokens on a critic review.
 ${integrationSteps(config, 'build')}
+
+### Final step — signal completion
+
+After all other steps are done, call:
+
+\`\`\`
+mcp__featherkit__mark_phase_complete {
+  taskId: "<id>",
+  phase: "build",
+  summary: "<1–3 sentence summary of what was done>"
+}
+\`\`\`
 ---
 
 ## Hard rules

@@ -71,6 +71,18 @@ mcp__featherkit__start_task  { taskId: "<id>", title: "<short title>" }
 
 Print a one-paragraph summary of what will be built and why, then stop. Do not start implementing.
 ${integrationSteps(config, 'frame')}
+
+### Final step — signal completion
+
+After all other steps are done, call:
+
+\`\`\`
+mcp__featherkit__mark_phase_complete {
+  taskId: "<id>",
+  phase: "frame",
+  summary: "<1–3 sentence summary of what was done>"
+}
+\`\`\`
 ---
 
 ## Hard rules

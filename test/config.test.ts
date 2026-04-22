@@ -20,7 +20,13 @@ describe('FeatherConfigSchema', () => {
     projectName: 'my-project',
     clients: 'both',
     models: [{ provider: 'anthropic', model: 'claude-sonnet-4', role: 'build' }],
-    integrations: { linear: false, github: false, context7: false, webSearch: false },
+    integrations: {
+      linear: false,
+      github: false,
+      context7: false,
+      webSearch: false,
+      playwright: false,
+    },
     stateDir: '.project-state',
     docsDir: 'project-docs',
   };
@@ -72,6 +78,28 @@ describe('FeatherConfigSchema', () => {
     if (result.success) expect(result.data.docsDir).toBe('project-docs');
   });
 
+  it('fills orchestrator defaults when omitted', () => {
+    const result = FeatherConfigSchema.safeParse(validConfig);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.orchestrator.enabled).toBe(false);
+      expect(result.data.orchestrator.mode).toBe('manual');
+      expect(result.data.orchestrator.router.model).toBe('haiku');
+      expect(result.data.orchestrator.router.timeoutMs).toBe(60_000);
+      expect(result.data.orchestrator.approvalGate.frame).toBe('editor');
+    }
+  });
+
+  it('fills nested orchestrator defaults when the block is undefined', () => {
+    const result = FeatherConfigSchema.safeParse({ ...validConfig, orchestrator: undefined });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.orchestrator.router.enabled).toBe(true);
+      expect(result.data.orchestrator.timeouts.phaseMinutes).toBe(30);
+      expect(result.data.orchestrator.tui.maxStreamLines).toBe(40);
+    }
+  });
+
   it('rejects wrong version number', () => {
     const result = FeatherConfigSchema.safeParse({ ...validConfig, version: 2 });
     expect(result.success).toBe(false);
@@ -101,6 +129,56 @@ describe('ProjectStateSchema', () => {
           title: 'Add feature',
           status: 'active',
           progress: [{ timestamp: new Date().toISOString(), role: 'build', message: 'Started' }],
+        },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts existing state files without orchestrator metadata', () => {
+    const result = ProjectStateSchema.safeParse({
+      ...validState,
+      tasks: [{ id: 'LEGACY-1', title: 'Legacy', status: 'active', progress: [] }],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts orchestrator state metadata when present', () => {
+    const result = ProjectStateSchema.safeParse({
+      ...validState,
+      orchestrator: {
+        status: 'running',
+        pid: 1234,
+        startedAt: new Date().toISOString(),
+        heartbeatAt: new Date().toISOString(),
+      },
+      tasks: [
+        {
+          id: 'ORCH-1',
+          title: 'Orchestrated task',
+          status: 'active',
+          sessionId: 'session-123',
+          phaseCompletions: [
+            {
+              phase: 'build',
+              summary: 'Implemented schema updates',
+              completedAt: new Date().toISOString(),
+            },
+          ],
+          approvals: [
+            {
+              phase: 'frame',
+              approvedAt: new Date().toISOString(),
+              modified: false,
+              mode: 'editor',
+            },
+          ],
+          orchestratorLock: {
+            holderPid: 999,
+            acquiredAt: new Date().toISOString(),
+            heartbeatAt: new Date().toISOString(),
+          },
+          progress: [],
         },
       ],
     });
@@ -214,6 +292,20 @@ describe('loadConfig', () => {
     const loaded = await loadConfig(tmpDir);
     expect(loaded.projectName).toBe('test-proj');
     expect(loaded.version).toBe(1);
+  });
+
+  it('fills orchestrator defaults for legacy config files without the block', async () => {
+    const configDir = join(tmpDir, 'featherkit');
+    await mkdir(configDir, { recursive: true });
+
+    const { orchestrator: _orchestrator, ...legacyConfig } = defaultConfig('legacy-config');
+    await writeFile(join(configDir, 'config.json'), JSON.stringify(legacyConfig), 'utf8');
+
+    const loaded = await loadConfig(tmpDir);
+    expect(loaded.orchestrator.enabled).toBe(false);
+    expect(loaded.orchestrator.router.model).toBe('haiku');
+    expect(loaded.orchestrator.router.timeoutMs).toBe(60_000);
+    expect(loaded.orchestrator.approvalGate.sync).toBe('prompt');
   });
 });
 

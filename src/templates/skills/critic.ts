@@ -74,6 +74,21 @@ Format your notes as:
 - [ ] <criterion that is not met>
 \`\`\`
 
+${steps}
+
+### Final step — signal completion
+
+After all other steps are done, call:
+
+\`\`\`
+mcp__featherkit__mark_phase_complete {
+  taskId: "<id>",
+  phase: "critic",
+  verdict: "<pass|warn|fail>",
+  summary: "<1–3 sentence summary of what was done>"
+}
+\`\`\`
+
 ---
 
 ## Hard rules
@@ -100,5 +115,5 @@ Format your notes as:
 - For a single-call context bundle: \`prepare_context_pack { forRole: "critic", taskId: "<id>" }\` replaces \`get_task\` + \`get_diff\` with one call
 - One entry in \`record_review_notes\` is enough — don't call it repeatedly
 - If a criterion is clearly met, note it and move on
-${steps}`;
+`;
 }

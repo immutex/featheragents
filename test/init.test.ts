@@ -81,6 +81,10 @@ describe('scaffoldFiles — both clients', () => {
     expect(existsSync(cfgPath)).toBe(true);
     const parsed = JSON.parse(await readFile(cfgPath, 'utf8'));
     expect(parsed.projectName).toBe('init-test-project');
+    expect(parsed.orchestrator).toBeDefined();
+    expect(parsed.orchestrator.enabled).toBe(false);
+    expect(parsed.orchestrator.router.model).toBe('haiku');
+    expect(parsed.orchestrator.router.timeoutMs).toBe(60000);
   });
 
   it('creates project-docs directory structure', async () => {

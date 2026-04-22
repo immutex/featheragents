@@ -1,6 +1,7 @@
 import { readFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join } from 'path';
+import { DEFAULT_ORCHESTRATOR_CONFIG } from './defaults.js';
 import { FeatherConfigSchema, type FeatherConfig } from './schema.js';
 
 const CONFIG_PATH = 'featherkit/config.json';
@@ -33,7 +34,16 @@ export async function loadConfig(cwd = process.cwd()): Promise<FeatherConfig> {
     throw new Error(`Invalid JSON in ${configPath}. Check for syntax errors.`);
   }
 
-  const result = FeatherConfigSchema.safeParse(parsed);
+  const normalized =
+    typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+      ? {
+          ...(parsed as Record<string, unknown>),
+          orchestrator:
+            (parsed as Record<string, unknown>).orchestrator ?? DEFAULT_ORCHESTRATOR_CONFIG,
+        }
+      : parsed;
+
+  const result = FeatherConfigSchema.safeParse(normalized);
   if (!result.success) {
     const issues = result.error.issues
       .map((i) => `  • ${i.path.join('.')}: ${i.message}`)

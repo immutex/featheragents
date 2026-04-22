@@ -1,7 +1,15 @@
-import type { FeatherConfig, Integrations, ModelConfig } from './schema.js';
+import {
+  MemoryConfigSchema,
+  OrchestratorConfigSchema,
+  type FeatherConfig,
+  type Integrations,
+  type ModelConfig,
+  type OrchestratorConfig,
+} from './schema.js';
 
 export const DEFAULT_STATE_DIR = '.project-state';
 export const DEFAULT_DOCS_DIR = 'project-docs';
+export const DEFAULT_WORKFLOW = 'project-docs/workflows/default.json';
 
 export const DEFAULT_INTEGRATIONS: Integrations = {
   linear: false,
@@ -10,6 +18,18 @@ export const DEFAULT_INTEGRATIONS: Integrations = {
   webSearch: false,
   playwright: false,
 };
+
+export const DEFAULT_ORCHESTRATOR_CONFIG: OrchestratorConfig = OrchestratorConfigSchema.parse({});
+
+function cloneOrchestratorConfig(config: OrchestratorConfig = DEFAULT_ORCHESTRATOR_CONFIG): OrchestratorConfig {
+  return {
+    ...config,
+    router: { ...config.router },
+    timeouts: { ...config.timeouts },
+    approvalGate: { ...config.approvalGate },
+    tui: { ...config.tui },
+  };
+}
 
 // Curated catalog of recent, coding-capable models
 export interface ModelOption {
@@ -66,8 +86,12 @@ export function defaultConfig(projectName: string, preset = 'balanced'): Feather
     projectName,
     clients: 'both',
     models,
+    packages: [],
     integrations: { ...DEFAULT_INTEGRATIONS },
     stateDir: DEFAULT_STATE_DIR,
     docsDir: DEFAULT_DOCS_DIR,
+    workflow: DEFAULT_WORKFLOW,
+    memory: MemoryConfigSchema.parse({}),
+    orchestrator: cloneOrchestratorConfig(),
   };
 }

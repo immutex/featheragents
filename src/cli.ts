@@ -10,6 +10,10 @@ import { handoffCommand } from './commands/handoff.js';
 import { reviewCommand } from './commands/review.js';
 import { skillsCommand } from './commands/skills-install.js';
 import { verifyCommand } from './commands/verify.js';
+import { orchestrateCommand } from './commands/orchestrate.js';
+import { approveCommand } from './commands/approve.js';
+import { packagesCommand } from './commands/packages.js';
+import { serveCommand } from './commands/serve.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -37,5 +41,9 @@ program.addCommand(handoffCommand);
 program.addCommand(reviewCommand);
 program.addCommand(skillsCommand);
 program.addCommand(verifyCommand);
+program.addCommand(orchestrateCommand);
+program.addCommand(approveCommand);
+program.addCommand(packagesCommand);
+program.addCommand(serveCommand);
 
 program.parse();

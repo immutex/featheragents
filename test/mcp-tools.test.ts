@@ -6,6 +6,7 @@ import { randomBytes } from 'crypto';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
 import { defaultConfig } from '../src/config/defaults.js';
+import { openMemoryDb } from '../src/memory/db.js';
 import { loadState, saveState } from '../src/mcp/state-io.js';
 import type { ProjectState } from '../src/config/schema.js';
 
@@ -73,6 +74,14 @@ async function setupTmpProject() {
   cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue(tmpDir);
 }
 
+async function writeProjectConfig(mutator?: (config: ReturnType<typeof defaultConfig>) => void) {
+  const config = defaultConfig('mcp-test-project');
+  mutator?.(config);
+  const configDir = join(tmpDir, 'featherkit');
+  await mkdir(configDir, { recursive: true });
+  await writeFile(join(configDir, 'config.json'), JSON.stringify(config), 'utf8');
+}
+
 async function teardownTmpProject() {
   cwdSpy.mockRestore();
   await rm(tmpDir, { recursive: true, force: true });
@@ -81,7 +90,7 @@ async function teardownTmpProject() {
 // ── Tool registration ─────────────────────────────────────────────────────────
 
 describe('registerAllTools', () => {
-  it('registers all 12 expected tools', async () => {
+  it('registers all 13 expected tools', async () => {
     const { registerAllTools } = await import('../src/mcp/tools/index.js');
     const server = new MockMcpServer();
     registerAllTools(server as unknown as McpServer);
@@ -97,6 +106,7 @@ describe('registerAllTools', () => {
       'record_decision',
       'list_tasks',
       'get_diff',
+      'mark_phase_complete',
       'prepare_context_pack',
       'verify_phase',
     ];
@@ -106,6 +116,61 @@ describe('registerAllTools', () => {
     }
 
     expect(server.tools.size).toBe(expectedTools.length);
+  });
+
+  it('registers memory tools only when memory is enabled', async () => {
+    await setupTmpProject();
+    await writeProjectConfig((config) => {
+      config.memory.enabled = true;
+    });
+
+    const { registerAllTools } = await import('../src/mcp/tools/index.js');
+    const server = new MockMcpServer();
+    registerAllTools(server as unknown as McpServer);
+
+    expect(server.tools.has('retrieve_memory')).toBe(true);
+    expect(server.tools.has('write_memory')).toBe(true);
+    expect(server.tools.has('list_memories')).toBe(true);
+
+    await teardownTmpProject();
+  });
+});
+
+describe('memory MCP tools', () => {
+  beforeEach(setupTmpProject);
+  afterEach(teardownTmpProject);
+
+  it('writes, retrieves, and lists memories when memory is enabled', async () => {
+    await writeProjectConfig((config) => {
+      config.memory.enabled = true;
+    });
+
+    const { registerAllTools } = await import('../src/mcp/tools/index.js');
+    const server = new MockMcpServer();
+    registerAllTools(server as unknown as McpServer);
+
+    const writeResult = await callTool(server, 'write_memory', {
+      type: 'semantic',
+      title: 'Router rewrite',
+      content: 'The router rewrite keeps memory access in the orchestrator prompt path.',
+      scope: 'repo',
+      entities: [{ kind: 'task', value: 'router' }],
+    });
+    const parsedWrite = JSON.parse(writeResult) as { action: string; memoryId: string | null };
+
+    expect(parsedWrite.action).toBe('create');
+    expect(parsedWrite.memoryId).toEqual(expect.any(String));
+
+    const retrieveResult = await callTool(server, 'retrieve_memory', { query: 'router rewrite' });
+    expect(retrieveResult).toContain('Router rewrite');
+
+    const listResult = await callTool(server, 'list_memories', { scope: 'repo', type: 'semantic' });
+    expect(listResult).toContain('Router rewrite');
+
+    const db = openMemoryDb(join(tmpDir, '.project-state', 'memory.db'));
+    expect(db.prepare('SELECT COUNT(*) AS count FROM memories').get()).toEqual({ count: 1 });
+    expect(db.prepare('SELECT COUNT(*) AS count FROM memory_access_log').get()).toEqual({ count: 2 });
+    db.close();
   });
 });
 
@@ -196,6 +261,53 @@ describe('append_progress', () => {
       role: 'build',
       message: 'test',
     });
+    expect(text).toContain('not found');
+  });
+});
+
+// ── mark_phase_complete ────────────────────────────────────────────────────────
+
+describe('mark_phase_complete', () => {
+  beforeEach(setupTmpProject);
+  afterEach(teardownTmpProject);
+
+  it('writes a phase completion entry and progress note to the task', async () => {
+    const state = freshState();
+    state.tasks.push({ id: 'FEAT-001', title: 'Test', status: 'active', progress: [] });
+    state.currentTask = 'FEAT-001';
+    await saveState(state, undefined, tmpDir);
+
+    const { registerMarkPhaseComplete } = await import('../src/mcp/tools/mark-phase-complete.js');
+    const server = new MockMcpServer();
+    registerMarkPhaseComplete(server as unknown as McpServer);
+
+    await callTool(server, 'mark_phase_complete', {
+      taskId: 'FEAT-001',
+      phase: 'critic',
+      verdict: 'warn',
+      summary: 'One edge case still needs follow-up coverage.',
+    });
+
+    const updated = await loadState(undefined, tmpDir);
+    expect(updated.tasks[0]!.phaseCompletions).toHaveLength(1);
+    expect(updated.tasks[0]!.phaseCompletions?.[0]?.phase).toBe('critic');
+    expect(updated.tasks[0]!.phaseCompletions?.[0]?.verdict).toBe('warn');
+    expect(updated.tasks[0]!.progress).toHaveLength(1);
+    expect(updated.tasks[0]!.progress[0]!.role).toBe('critic');
+    expect(updated.tasks[0]!.progress[0]!.message).toContain('Phase complete');
+  });
+
+  it('returns an error message when the task does not exist', async () => {
+    const { registerMarkPhaseComplete } = await import('../src/mcp/tools/mark-phase-complete.js');
+    const server = new MockMcpServer();
+    registerMarkPhaseComplete(server as unknown as McpServer);
+
+    const text = await callTool(server, 'mark_phase_complete', {
+      taskId: 'UNKNOWN',
+      phase: 'build',
+      summary: 'done',
+    });
+
     expect(text).toContain('not found');
   });
 });

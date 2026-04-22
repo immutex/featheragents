@@ -1,0 +1,37 @@
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&family=Instrument+Serif&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body, #root { height: 100%; }
+  body {
+    @apply bg-bg text-ink font-sans antialiased;
+    font-size: 16px;
+    font-feature-settings: "cv11", "ss01", "ss03";
+    letter-spacing: -0.005em;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer utilities {
+  .fk-dots {
+    background-image: radial-gradient(circle, #1a1a22 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+  .fk-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+  .fk-scroll::-webkit-scrollbar-track { background: transparent; }
+  .fk-scroll::-webkit-scrollbar-thumb { background: #23232e; border-radius: 4px; }
+  .fk-scroll::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
+}
+
+@layer components {
+  .progress-bar {
+    @apply h-2 rounded-full bg-white/[.04] overflow-hidden;
+  }
+  .progress-bar-fill {
+    @apply h-full rounded-full;
+  }
+}

@@ -106,7 +106,13 @@ describe('renderClaudeMd', () => {
 
   it('mentions enabled integrations', () => {
     const config = makeConfig({
-      integrations: { linear: true, github: false, context7: false, webSearch: false },
+      integrations: {
+        linear: true,
+        github: false,
+        context7: false,
+        webSearch: false,
+        playwright: false,
+      },
     });
     const out = renderClaudeMd(config);
     expect(out).toContain('Linear');
@@ -114,7 +120,13 @@ describe('renderClaudeMd', () => {
 
   it('does not mention disabled integrations in the integrations section', () => {
     const config = makeConfig({
-      integrations: { linear: false, github: false, context7: false, webSearch: false },
+      integrations: {
+        linear: false,
+        github: false,
+        context7: false,
+        webSearch: false,
+        playwright: false,
+      },
     });
     const out = renderClaudeMd(config);
     // Should not have an integrations section at all
@@ -179,8 +191,8 @@ describe('renderOpenCodeConfig', () => {
     expect(parsed.mcp?.featherkit).toBeDefined();
     expect(parsed.mcp.featherkit.type).toBe('local');
     expect(Array.isArray(parsed.mcp.featherkit.command)).toBe(true);
-    expect(parsed.mcp.featherkit.command).toContain('npx');
-    expect(parsed.mcp.featherkit.command).toContain('featherkit-mcp');
+    expect(parsed.mcp.featherkit.command).toContain('node');
+    expect(parsed.mcp.featherkit.command).toContain('./node_modules/@1mmutex/featherkit/dist/server.js');
   });
 
   it('does not include an agents block (agents live in .opencode/agents/*.md)', () => {
@@ -219,6 +231,7 @@ const MCP_TOOLS = [
   'mcp__featherkit__get_task',
   'mcp__featherkit__start_task',
   'mcp__featherkit__append_progress',
+  'mcp__featherkit__mark_phase_complete',
   'mcp__featherkit__record_review_notes',
   'mcp__featherkit__write_handoff',
   'mcp__featherkit__get_diff',
@@ -248,6 +261,12 @@ describe('renderFrameSkill', () => {
     expect(out).toContain('Done Criteria');
   });
 
+  it('includes the final phase completion call', () => {
+    const out = renderFrameSkill(makeConfig());
+    expect(out).toContain('mcp__featherkit__mark_phase_complete');
+    expect(out).toContain('phase: "frame"');
+  });
+
   it('stays under 2000 words', () => {
     const out = renderFrameSkill(makeConfig());
     expect(out.split(/\s+/).length).toBeLessThan(2000);
@@ -269,6 +288,12 @@ describe('renderBuildSkill', () => {
   it('contains anti-bloat rules', () => {
     const out = renderBuildSkill(makeConfig());
     expect(out.toLowerCase()).toContain('do not');
+  });
+
+  it('includes the final phase completion call', () => {
+    const out = renderBuildSkill(makeConfig());
+    expect(out).toContain('mcp__featherkit__mark_phase_complete');
+    expect(out).toContain('phase: "build"');
   });
 
   it('stays under 2000 words', () => {
@@ -296,6 +321,13 @@ describe('renderCriticSkill', () => {
     expect(out.toLowerCase()).toMatch(/approve.*unmet|unmet.*approve/);
   });
 
+  it('includes the final phase completion call with verdict', () => {
+    const out = renderCriticSkill(makeConfig());
+    expect(out).toContain('mcp__featherkit__mark_phase_complete');
+    expect(out).toContain('phase: "critic"');
+    expect(out).toContain('verdict: "<pass|warn|fail>"');
+  });
+
   it('stays under 2000 words', () => {
     const out = renderCriticSkill(makeConfig());
     expect(out.split(/\s+/).length).toBeLessThan(2000);
@@ -319,6 +351,12 @@ describe('renderSyncSkill', () => {
     const out = renderSyncSkill(makeConfig());
     expect(out.toLowerCase()).toContain('what was done');
     expect(out.toLowerCase()).toContain('what is next');
+  });
+
+  it('includes the final phase completion call', () => {
+    const out = renderSyncSkill(makeConfig());
+    expect(out).toContain('mcp__featherkit__mark_phase_complete');
+    expect(out).toContain('phase: "sync"');
   });
 
   it('stays under 2000 words', () => {
