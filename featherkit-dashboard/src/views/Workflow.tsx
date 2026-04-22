@@ -16,6 +16,7 @@ import {
   ReactFlowProvider,
   useReactFlow,
   BackgroundVariant,
+  type Connection,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { Badge } from '@/components/ui/Badge';
@@ -23,15 +24,17 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { apiPost } from '@/lib/api';
 import { getBuiltInAgentById } from '@/lib/builtin-agents';
-import { FLOW_START_NODE_ID, flowToWorkflow, workflowToFlow, type WorkflowFlowEdge, type WorkflowFlowNode, type WorkflowFlowNodeData } from '@/lib/workflow-convert';
-import { Save, Play, CheckCircle2, Layers, Boxes, Eye, GitMerge, RotateCcw, LayoutGrid, Plus } from 'lucide-react';
+import { FLOW_START_NODE_ID, connectWorkflowFlowEdge, flowToWorkflow, removeWorkflowFlowNode, updateWorkflowFlowEdgeCondition, workflowToFlow, type WorkflowFlowEdge, type WorkflowFlowNode, type WorkflowFlowNodeData } from '@/lib/workflow-convert';
+import { getWorkflowInspectorKey, shouldHandleWorkflowDeleteShortcut } from '@/lib/workflow-ui';
+import { Save, Play, CheckCircle2, Layers, Boxes, Eye, GitMerge, RotateCcw, LayoutGrid, Plus, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { motion, AnimatePresence } from 'framer-motion';
 import { fadeUp } from '@/lib/motion';
-import { type ApiWorkflow, usePutWorkflow, useWorkflowQuery, workflowNodeLabel } from '@/lib/queries';
+import { type ApiWorkflow, type ApiWorkflowEdge, usePutWorkflow, useWorkflowQuery, workflowNodeLabel } from '@/lib/queries';
 
 type Direction = 'RIGHT' | 'DOWN';
 type ToastPayload = { tone: 'accent' | 'ok' | 'warn' | 'err'; title: string; desc?: string };
+type WorkflowEdgeCondition = ApiWorkflowEdge['condition'];
 
 const roleIcon: Record<string, any> = { frame: Layers, build: Boxes, critic: Eye, sync: GitMerge };
 
@@ -93,10 +96,10 @@ function arrangeNodes(nodes: WorkflowFlowNode[], direction: Direction): Workflow
 
 function OrchestratorNode({ data }: NodeProps<WorkflowFlowNode>) {
   return (
-    <div className="relative w-[96px] h-[96px] rounded-full bg-elevated border border-accent/70 flex flex-col items-center justify-center shadow-[0_0_32px_rgba(34,211,238,0.15)]" style={{ transform: 'translateZ(0)' }}>
+    <div className="group relative w-[96px] h-[96px] rounded-full bg-elevated border border-accent/70 flex flex-col items-center justify-center shadow-[0_0_32px_rgba(34,211,238,0.15)]" style={{ transform: 'translateZ(0)' }}>
       <Play size={16} className="text-accent mb-1" />
       <span className="text-[11px] font-semibold tracking-tight">{data.label}</span>
-      <Handle type="source" position={Position.Right} className="!opacity-0" />
+      <Handle type="source" position={Position.Right} className="!h-3 !w-3 !border-2 !border-bg !bg-accent !opacity-20 group-hover:!opacity-100 transition-opacity" />
     </div>
   );
 }
@@ -108,7 +111,7 @@ function AgentNode({ data }: NodeProps<WorkflowFlowNode>) {
 
   return (
     <div
-      className={cn('relative w-[172px] rounded-xl border bg-elevated overflow-hidden shadow-[0_6px_18px_rgba(0,0,0,0.35)]', roleColor[roleKey])}
+      className={cn('group relative w-[172px] rounded-xl border bg-elevated overflow-hidden shadow-[0_6px_18px_rgba(0,0,0,0.35)]', roleColor[roleKey])}
       style={{ transform: 'translateZ(0)' }}
     >
       <div className={cn('h-[3px] w-full', roleStripe[roleKey])} />
@@ -121,10 +124,10 @@ function AgentNode({ data }: NodeProps<WorkflowFlowNode>) {
         {(data.model ?? agent?.model) && <div className="text-[10.5px] font-mono text-ink-4 mt-1.5 truncate">{data.model ?? agent?.model}</div>}
         {data.gate && <div className="text-[10px] font-mono text-ink-5 mt-1 truncate">gate: {data.gate}</div>}
       </div>
-      <Handle type="target" position={Position.Left} className="!opacity-0" />
-      <Handle type="source" position={Position.Right} className="!opacity-0" />
-      <Handle type="target" position={Position.Top} className="!opacity-0" />
-      <Handle type="source" position={Position.Bottom} className="!opacity-0" />
+      <Handle type="target" position={Position.Left} className="!h-3 !w-3 !border-2 !border-bg !bg-accent !opacity-0 group-hover:!opacity-100 transition-opacity" />
+      <Handle type="source" position={Position.Right} className="!h-3 !w-3 !border-2 !border-bg !bg-accent !opacity-0 group-hover:!opacity-100 transition-opacity" />
+      <Handle type="target" position={Position.Top} className="!h-3 !w-3 !border-2 !border-bg !bg-accent !opacity-0 group-hover:!opacity-100 transition-opacity" />
+      <Handle type="source" position={Position.Bottom} className="!h-3 !w-3 !border-2 !border-bg !bg-accent !opacity-0 group-hover:!opacity-100 transition-opacity" />
     </div>
   );
 }
@@ -198,6 +201,7 @@ function CanvasInner({ workflow, onToast }: { workflow: ApiWorkflow; onToast: (t
   const [nodes, setNodes, onNodesChange] = useNodesState<WorkflowFlowNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<WorkflowFlowEdge>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const { fitView } = useReactFlow();
   const initial = useRef(true);
@@ -213,15 +217,24 @@ function CanvasInner({ workflow, onToast }: { workflow: ApiWorkflow; onToast: (t
       setSelectedNodeId(null);
     }
 
+    if (!flow.edges.some((edge) => edge.id === selectedEdgeId)) {
+      setSelectedEdgeId(null);
+    }
+
     setTimeout(() => {
       fitView({ padding: 0.28, duration: initial.current ? 0 : 350 });
       initial.current = false;
     }, 30);
-  }, [workflow, setNodes, setEdges, fitView, selectedNodeId]);
+  }, [workflow, setNodes, setEdges, fitView, selectedNodeId, selectedEdgeId]);
 
   const selectedNode = useMemo(
     () => nodes.find((node) => node.id === selectedNodeId) ?? null,
     [nodes, selectedNodeId],
+  );
+
+  const selectedEdge = useMemo(
+    () => edges.find((edge) => edge.id === selectedEdgeId) ?? null,
+    [edges, selectedEdgeId],
   );
 
   const buildDraftWorkflow = useCallback(() => flowToWorkflow(nodes, edges), [nodes, edges]);
@@ -282,8 +295,102 @@ function CanvasInner({ workflow, onToast }: { workflow: ApiWorkflow; onToast: (t
 
     setNodes((current) => [...current, nextNode]);
     setSelectedNodeId(id);
+    setSelectedEdgeId(null);
     onToast({ tone: 'accent', title: 'Node added', desc: 'New build node added to the canvas.' });
   }, [nodes, onToast, setNodes]);
+
+  const handleConnect = useCallback((connection: Connection) => {
+    const source = connection.source ?? null;
+    const target = connection.target ?? null;
+
+    if (!source || !target) {
+      onToast({ tone: 'warn', title: 'Connection incomplete', desc: 'Connect two workflow nodes to add an edge.' });
+      return;
+    }
+
+    if (source === target) {
+      onToast({ tone: 'warn', title: 'Self-loop not added', desc: 'Connect a node to a different destination.' });
+      return;
+    }
+
+    const nextEdges = connectWorkflowFlowEdge(edges, { source, target });
+    if (nextEdges === edges) {
+      onToast({ tone: 'warn', title: 'Connection unchanged', desc: source === FLOW_START_NODE_ID ? 'Start already points to that node.' : 'That connection already exists.' });
+      return;
+    }
+
+    setEdges(nextEdges);
+    setSelectedNodeId(null);
+    setSelectedEdgeId(nextEdges[nextEdges.length - 1]?.id ?? null);
+    onToast({ tone: 'accent', title: source === FLOW_START_NODE_ID ? 'Start updated' : 'Connection added', desc: source === FLOW_START_NODE_ID ? 'Workflow entrypoint updated from the canvas.' : 'New workflow edge added.' });
+  }, [edges, onToast, setEdges]);
+
+  const handleDeleteSelectedNode = useCallback(() => {
+    if (!selectedNode || selectedNode.id === FLOW_START_NODE_ID) {
+      onToast({ tone: 'warn', title: 'Cannot delete start node', desc: 'The synthetic start node is required for the workflow canvas.' });
+      return;
+    }
+
+    const agentCount = nodes.filter((node) => node.id !== FLOW_START_NODE_ID && node.data.type === 'agent').length;
+    if (agentCount <= 1) {
+      onToast({ tone: 'warn', title: 'Need one workflow node', desc: 'Keep at least one agent node in the workflow.' });
+      return;
+    }
+
+    const next = removeWorkflowFlowNode(nodes, edges, selectedNode.id);
+    setNodes(next.nodes);
+    setEdges(next.edges);
+    setSelectedNodeId(null);
+    setSelectedEdgeId(null);
+    onToast({ tone: 'accent', title: 'Node deleted', desc: `Removed ${selectedNode.data.label} from the workflow.` });
+  }, [edges, nodes, onToast, selectedNode, setEdges, setNodes]);
+
+  const handleDeleteSelectedEdge = useCallback(() => {
+    if (!selectedEdge) {
+      return;
+    }
+
+    if (selectedEdge.source === FLOW_START_NODE_ID) {
+      onToast({ tone: 'warn', title: 'Start edge is managed separately', desc: 'Drag a new connection from Start to change the entrypoint.' });
+      return;
+    }
+
+    setEdges((current) => current.filter((edge) => edge.id !== selectedEdge.id));
+    setSelectedEdgeId(null);
+    onToast({ tone: 'accent', title: 'Edge deleted', desc: 'Workflow connection removed.' });
+  }, [onToast, selectedEdge, setEdges]);
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (!shouldHandleWorkflowDeleteShortcut(event)) {
+        return;
+      }
+
+      if (selectedNode) {
+        event.preventDefault();
+        handleDeleteSelectedNode();
+        return;
+      }
+
+      if (selectedEdge) {
+        event.preventDefault();
+        handleDeleteSelectedEdge();
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleDeleteSelectedEdge, handleDeleteSelectedNode, selectedEdge, selectedNode]);
+
+  const updateSelectedEdgeCondition = useCallback((condition: WorkflowEdgeCondition | undefined) => {
+    if (!selectedEdgeId) {
+      return;
+    }
+
+    setEdges((current) =>
+      current.map((edge) => (edge.id === selectedEdgeId ? updateWorkflowFlowEdgeCondition(edge, condition) : edge)),
+    );
+  }, [selectedEdgeId, setEdges]);
 
   const handleValidate = useCallback(async () => {
     try {
@@ -327,6 +434,14 @@ function CanvasInner({ workflow, onToast }: { workflow: ApiWorkflow; onToast: (t
           <Button variant="outline" size="sm" onClick={handleAddNode}>
             <Plus size={13} />Add node
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={selectedNode ? handleDeleteSelectedNode : handleDeleteSelectedEdge}
+            disabled={!selectedNode && !selectedEdge}
+          >
+            <Trash2 size={13} />Delete selected
+          </Button>
         </div>
         <div className="absolute top-3 right-3 z-10 flex gap-2">
           <Button variant="outline" size="sm" onClick={handleValidate}>
@@ -346,12 +461,23 @@ function CanvasInner({ workflow, onToast }: { workflow: ApiWorkflow; onToast: (t
           edgeTypes={edgeTypes}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
-          onNodeClick={(_, node) => setSelectedNodeId(node.id)}
-          onPaneClick={() => setSelectedNodeId(null)}
+          onNodeClick={(_, node) => {
+            setSelectedNodeId(node.id);
+            setSelectedEdgeId(null);
+          }}
+          onEdgeClick={(_, edge) => {
+            setSelectedEdgeId(edge.id);
+            setSelectedNodeId(null);
+          }}
+          onConnect={handleConnect}
+          onPaneClick={() => {
+            setSelectedNodeId(null);
+            setSelectedEdgeId(null);
+          }}
           proOptions={{ hideAttribution: true }}
           colorMode="dark"
           nodesDraggable
-          nodesConnectable={false}
+          nodesConnectable
           edgesReconnectable={false}
           minZoom={0.4}
           maxZoom={2}
@@ -394,12 +520,14 @@ function CanvasInner({ workflow, onToast }: { workflow: ApiWorkflow; onToast: (t
             <svg width="16" height="2"><path d="M0 1 L16 1" stroke="#a1a1aa" strokeWidth="1.6" strokeLinecap="round" /></svg>
             flow
           </span>
+          <span className="text-ink-5">drag node handles to create connections</span>
+          <span className="text-ink-5">Delete / Backspace removes selection</span>
         </div>
       </Card>
 
       <AnimatePresence mode="wait">
         <motion.div
-          key={selectedNode?.id ?? 'empty'}
+          key={getWorkflowInspectorKey(selectedNode?.id ?? null, selectedEdge?.id ?? null)}
           variants={fadeUp}
           initial="initial"
           animate="animate"
@@ -407,7 +535,13 @@ function CanvasInner({ workflow, onToast }: { workflow: ApiWorkflow; onToast: (t
           className="w-[320px] shrink-0"
         >
           <Card className="h-full overflow-hidden flex flex-col">
-            {selectedNode ? <NodePanel node={selectedNode} onChange={updateSelectedNode} /> : <EmptyPanel />}
+            {selectedNode ? (
+              <NodePanel node={selectedNode} onChange={updateSelectedNode} onDelete={handleDeleteSelectedNode} />
+            ) : selectedEdge ? (
+              <EdgePanel edge={selectedEdge} onChangeCondition={updateSelectedEdgeCondition} onDelete={handleDeleteSelectedEdge} />
+            ) : (
+              <EmptyPanel />
+            )}
           </Card>
         </motion.div>
       </AnimatePresence>
@@ -436,12 +570,12 @@ export function WorkflowCanvas({ onToast }: { onToast: (toast: ToastPayload) => 
 function EmptyPanel() {
   return (
     <div className="p-5 text-sm text-ink-4 h-full flex items-center justify-center text-center">
-      Select a node to view or edit its configuration.
+      Select a node or edge to edit it. Drag between the visible connection dots to create new edges.
     </div>
   );
 }
 
-function NodePanel({ node, onChange }: { node: WorkflowFlowNode; onChange: (patch: Partial<WorkflowFlowNodeData>) => void }) {
+function NodePanel({ node, onChange, onDelete }: { node: WorkflowFlowNode; onChange: (patch: Partial<WorkflowFlowNodeData>) => void; onDelete: () => void }) {
   const data = node.data;
 
   if (node.id === FLOW_START_NODE_ID) {
@@ -514,6 +648,53 @@ function NodePanel({ node, onChange }: { node: WorkflowFlowNode; onChange: (patc
             <label className="text-xs text-ink-5 uppercase tracking-wider">Built-in system prompt</label>
             <div className="mt-1.5 px-3 py-2 rounded-lg bg-bg border border-border text-sm text-ink-3 leading-snug">{builtInAgent.systemPrompt}</div>
           </div>
+        )}
+
+        <Button variant="outline" size="sm" onClick={onDelete}>
+          <Trash2 size={13} />Delete node
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function EdgePanel({
+  edge,
+  onChangeCondition,
+  onDelete,
+}: {
+  edge: WorkflowFlowEdge;
+  onChangeCondition: (condition: WorkflowEdgeCondition | undefined) => void;
+  onDelete: () => void;
+}) {
+  const isStartEdge = edge.source === FLOW_START_NODE_ID;
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="px-4 py-3.5 border-b border-border">
+        <div className="text-xs text-ink-5 uppercase tracking-wider mb-0.5">Edge</div>
+        <div className="text-base font-semibold">{isStartEdge ? 'Workflow start' : `${edge.source} → ${edge.target}`}</div>
+      </div>
+      <div className="flex-1 p-4 space-y-4 overflow-y-auto fk-scroll">
+        <Field label="ID" value={edge.id} />
+        <Field label="From" value={edge.source} />
+        <Field label="To" value={edge.target} />
+
+        {!isStartEdge && (
+          <EditableSelect
+            label="Condition"
+            value={edge.data?.condition ?? ''}
+            options={['', 'pass', 'warn', 'fail']}
+            onChange={(value) => onChangeCondition(value === '' ? undefined : (value as WorkflowEdgeCondition))}
+          />
+        )}
+
+        {isStartEdge ? (
+          <div className="text-sm text-ink-4">This edge controls the workflow entrypoint. Drag a new connection from Start to another node to move it.</div>
+        ) : (
+          <Button variant="outline" size="sm" onClick={onDelete}>
+            <Trash2 size={13} />Delete edge
+          </Button>
         )}
       </div>
     </div>

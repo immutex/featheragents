@@ -240,6 +240,26 @@ describe('dashboard server routes', () => {
     expect(saved).toMatchObject(workflow);
   });
 
+  it('rejects workflow payloads when model or promptTemplate have invalid types', async () => {
+    const response = await requestJson(server.port, 'PUT', '/api/workflow', server.token, {
+      version: 1,
+      start: 'build',
+      nodes: [
+        { id: 'build', role: 'build', model: 54, promptTemplate: ['bad'] },
+      ],
+      edges: [],
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.body).toMatchObject({
+      error: 'Invalid workflow payload.',
+      issues: expect.arrayContaining([
+        expect.objectContaining({ path: ['nodes', 0, 'model'] }),
+        expect.objectContaining({ path: ['nodes', 0, 'promptTemplate'] }),
+      ]),
+    });
+  });
+
   it('rejects workflow validation when nodes are unreachable from the start node', async () => {
     const response = await requestJson(server.port, 'POST', '/api/workflow/validate', server.token, {
       version: 1,

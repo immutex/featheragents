@@ -1,73 +1,79 @@
-# React + TypeScript + Vite
+# featherkit-dashboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Web dashboard for featherkit — live view of orchestrator state, task kanban, workflow editor, memory graph, and provider connections.
 
-Currently, two official plugins are available:
+Served as static files by `feather serve`. Not a standalone app — it connects to the local featherkit HTTP+WS backend at `http://localhost:7721`.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Stack
 
-## React Compiler
+- **React 18** + TypeScript (strict)
+- **Vite** — dev server + build
+- **TanStack Query v5** — server state
+- **Zustand** — client state (event store)
+- **React Flow (`@xyflow/react`)** — workflow canvas and memory graph
+- **`@dnd-kit`** — kanban drag-and-drop
+- **`lucide-react`** — icons
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Development
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+# From featherkit-dashboard/
+bun install
+bun run dev          # dev server on :5173
+bun run build        # build to dist/
+bun run typecheck    # tsc --noEmit
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+**Requires `feather serve` running** in the project root. Set up the API token:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+cp .env.example .env.local
+# Paste the token from .project-state/dashboard.token into VITE_API_TOKEN
 ```
+
+## Views
+
+| View | Route | Description |
+|------|-------|-------------|
+| Home | `/` | Live orchestrator event stream + task summary stats |
+| Projects | `/projects` | Task list with verification status |
+| Kanban | `/kanban` | Drag-and-drop task board (persists to state.json) |
+| Workflow | `/workflow` | React Flow canvas — edit the phase DAG, save to disk |
+| Memory | `/memory` | Memory graph (React Flow), timeline, inspector panel |
+| Connections | `/connections` | Provider auth status, MCP servers, Pi packages |
+| Settings | `/settings` | Dashboard preferences |
+
+## Key Source Files
+
+```
+src/
+  App.tsx               # Root — router + QueryClientProvider
+  lib/
+    api.ts              # Typed fetch helpers (apiGet, apiPatch, apiPut, apiPost)
+    ws.ts               # useOrchestratorEvents hook — WebSocket subscription
+    queries.ts          # TanStack Query definitions for all API resources
+    workflow-convert.ts # workflowToFlow / flowToWorkflow pure converters
+    env.ts              # VITE_* env var helpers
+  views/
+    Home.tsx            # Event stream + stats
+    Kanban.tsx          # @dnd-kit board with optimistic updates
+    Workflow.tsx        # React Flow workflow canvas
+    Memory.tsx          # Memory tab container
+    memory/             # MemoryGraph, MemoryTimeline, MemoryInspector, RetrievalDebug
+    Connections.tsx     # Provider + MCP + skills management
+  components/
+    ui/                 # Shared primitives (Badge, Button, Card, Toast, …)
+    Sidebar.tsx         # Navigation sidebar
+  store/
+    events.ts           # Zustand event store (populated by WS)
+  data/
+    mock.ts             # Dev-only mock data (VITE_USE_MOCK=true)
+```
+
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `VITE_API_URL` | `http://localhost:7721` | feather serve base URL |
+| `VITE_API_TOKEN` | *(required)* | Bearer token from `.project-state/dashboard.token` |
+| `VITE_USE_MOCK` | `false` | Use mock data instead of real API (dev convenience) |
