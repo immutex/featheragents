@@ -27,7 +27,8 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Run test suite
-        run: bun test --timeout 30000
+        # Some Bun tests mutate process.cwd()/env and are not file-concurrency safe.
+        run: bun test --timeout 30000 --max-concurrency 1
 
   build:
     runs-on: ubuntu-latest
