@@ -271,6 +271,7 @@ export async function runOrchestrator(
   const workflow = loadWorkflow(config, cwd);
   const memoryDb = config.memory.enabled ? openMemoryDb(resolveMemoryDbPath(config, cwd)) : null;
   const eventLogger = createEventLogger(config.stateDir, cwd);
+  let lastTaskId: string | undefined;
   const runtimeHooks: OrchestratorHooks = {
     ...hooks,
     onEvent: (event) => {
@@ -284,6 +285,7 @@ export async function runOrchestrator(
       const state = await loadState(config.stateDir, cwd);
       const task = pickTask(state, opts?.taskId);
       if (!task) return;
+      lastTaskId = task.id;
 
       if (task.status === 'pending') task.status = 'active';
       state.currentTask = task.id;
@@ -445,7 +447,14 @@ export async function runOrchestrator(
       throw error;
     }
 
-    // The orchestrator loop must not throw.
+    const reason = error instanceof Error ? error.message : String(error);
+    console.error('[feather] orchestrator:unexpected-error', error);
+    emit(runtimeHooks, {
+      type: 'phase:failed',
+      taskId: lastTaskId ?? 'unknown',
+      phase: 'unknown',
+      reason,
+    });
   } finally {
     try {
       await eventLogger.close();

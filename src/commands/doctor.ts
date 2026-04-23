@@ -67,7 +67,7 @@ export async function runDoctor(cwd: string, deps: DoctorDeps = defaultDoctorDep
   // 1. featherkit/config.json exists and validates
   const configPath = join(cwd, 'featherkit', 'config.json');
   if (!existsSync(configPath)) {
-    results.push(fail('featherkit/config.json', 'File not found. Run `featherkit init`.'));
+    results.push(fail('featherkit/config.json', 'File not found. Run `feather init`.'));
   } else {
     const parsed = await tryReadJson(configPath);
     const result = FeatherConfigSchema.safeParse(parsed);
@@ -79,7 +79,7 @@ export async function runDoctor(cwd: string, deps: DoctorDeps = defaultDoctorDep
       // 2. .project-state/state.json exists and validates
       const statePath = join(cwd, config.stateDir, 'state.json');
       if (!existsSync(statePath)) {
-        results.push(fail(`${config.stateDir}/state.json`, 'File not found. Run `featherkit init`.'));
+        results.push(fail(`${config.stateDir}/state.json`, 'File not found. Run `feather init`.'));
       } else {
         const stateParsed = await tryReadJson(statePath);
         const stateResult = ProjectStateSchema.safeParse(stateParsed);
@@ -112,7 +112,7 @@ export async function runDoctor(cwd: string, deps: DoctorDeps = defaultDoctorDep
         // 5a. .mcp.json at project root references featherkit MCP server
         const mcpJson = join(cwd, '.mcp.json');
         if (!existsSync(mcpJson)) {
-          results.push(fail('.mcp.json', 'Not found. Run `featherkit mcp install`.'));
+          results.push(fail('.mcp.json', 'Not found. Run `feather mcp install`.'));
         } else {
           const mcpCfg = await tryReadJson(mcpJson) as Record<string, unknown> | null;
           const hasMcp =
@@ -123,7 +123,7 @@ export async function runDoctor(cwd: string, deps: DoctorDeps = defaultDoctorDep
           if (hasMcp) {
             results.push(pass('.mcp.json — featherkit MCP registered'));
           } else {
-            results.push(fail('.mcp.json', 'featherkit MCP entry missing. Run `featherkit mcp install`.'));
+            results.push(fail('.mcp.json', 'featherkit MCP entry missing. Run `feather mcp install`.'));
           }
         }
       }
@@ -131,7 +131,7 @@ export async function runDoctor(cwd: string, deps: DoctorDeps = defaultDoctorDep
       if (includeOpenCode) {
         const openCodeConfig = join(cwd, '.opencode', 'opencode.json');
         if (!existsSync(openCodeConfig)) {
-          results.push(fail('.opencode/opencode.json', 'Not found. Run `featherkit init`.'));
+          results.push(fail('.opencode/opencode.json', 'Not found. Run `feather init`.'));
         } else {
           const cfg = await tryReadJson(openCodeConfig) as Record<string, unknown> | null;
           const hasMcp =

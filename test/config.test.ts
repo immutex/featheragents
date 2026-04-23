@@ -263,7 +263,7 @@ describe('loadConfig', () => {
   });
 
   it('throws descriptive error when config file is missing', async () => {
-    await expect(loadConfig(tmpDir)).rejects.toThrow('featherkit init');
+    await expect(loadConfig(tmpDir)).rejects.toThrow('feather init');
   });
 
   it('throws on invalid JSON', async () => {
