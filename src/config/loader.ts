@@ -16,7 +16,7 @@ export async function loadConfig(cwd = process.cwd()): Promise<FeatherConfig> {
   if (!existsSync(configPath)) {
     throw new Error(
       `No featherkit config found at ${configPath}\n` +
-        `Run \`featherkit init\` to set up your project.`
+        `Run \`feather init\` to set up your project.`
     );
   }
 

@@ -7,6 +7,7 @@ import { randomUUID } from 'crypto';
 import { defaultConfig } from '../../src/config/defaults.js';
 import type { FeatherConfig, ModelRole, ProjectState, TaskEntry } from '../../src/config/schema.js';
 import { saveState, loadState } from '../../src/mcp/state-io.js';
+import * as stateIo from '../../src/mcp/state-io.js';
 import { makeGateHook } from '../../src/orchestrator/gates.js';
 import { acquireLock } from '../../src/orchestrator/lock.js';
 import { orchestrateCommand, runOrchestrateCommand } from '../../src/commands/orchestrate.js';
@@ -335,6 +336,44 @@ exit 1
     expect(task?.verification?.checks.typecheck?.status).toBe('fail');
     expect(task?.progress.at(-1)?.message).toContain('Verification blocked build');
     expect(phases).toEqual(['frame']);
+  });
+
+  it('logs and emits phase:failed when an unexpected orchestrator error occurs', async () => {
+    await writeState(tmpDir, [makeTask('ORCH-C-UNEXPECTED')]);
+
+    const unexpectedError = new Error('deliberate test throw');
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const originalLoadState = stateIo.loadState;
+    let loadStateCalls = 0;
+
+    const loadStateSpy = vi.spyOn(stateIo, 'loadState').mockImplementation(async (...args) => {
+      loadStateCalls += 1;
+      if (loadStateCalls === 2) {
+        throw unexpectedError;
+      }
+
+      return await originalLoadState(...args);
+    });
+
+    const events: Array<{ type: string; taskId?: string; phase?: string; reason?: string }> = [];
+
+    const { runOrchestrator } = await import('../../src/orchestrator/loop.js');
+    await expect(runOrchestrator(makeConfig(), {
+      onEvent: (event) => {
+        events.push(event);
+      },
+    }, { once: true })).resolves.toBeUndefined();
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith('[feather] orchestrator:unexpected-error', unexpectedError);
+    expect(events).toContainEqual({
+      type: 'phase:failed',
+      taskId: 'ORCH-C-UNEXPECTED',
+      phase: 'unknown',
+      reason: 'deliberate test throw',
+    });
+
+    loadStateSpy.mockRestore();
+    consoleErrorSpy.mockRestore();
   });
 
   it('acquires, heartbeats, and releases the project lock', async () => {

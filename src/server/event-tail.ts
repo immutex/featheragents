@@ -1,4 +1,4 @@
-import { statSync, watch } from 'node:fs';
+import { mkdirSync, statSync, watch } from 'node:fs';
 import { open, stat } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 
@@ -28,6 +28,8 @@ export function tailEventLog(
   const directory = join(cwd, stateDir);
   const filePath = join(directory, 'events.jsonl');
   const fileName = basename(filePath);
+
+  mkdirSync(directory, { recursive: true });
 
   let offset = 0;
   let remainder = '';
