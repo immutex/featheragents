@@ -25,7 +25,7 @@ export async function runServeCommand(options: ServeCommandOptions, cwd = proces
   }
 
   const server = await startServer(config, requestedPort, { cwd, readOnly });
-  process.stdout.write(`Dashboard: ${server.url} · token: ${server.token}\n`);
+  process.stdout.write(`Dashboard: ${server.url}?token=${server.token}\n`);
   if (server.readOnly) {
     process.stdout.write('Mode: read-only\n');
   }
