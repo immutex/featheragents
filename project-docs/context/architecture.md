@@ -2,98 +2,70 @@
 
 ## Overview
 
-featherkit is an autonomous multi-model coding pipeline. It coordinates frontier models through a structured **Frame → Build → Critic → Sync** loop, driven by a local orchestrator that spawns real agent processes, injects memory context from prior sessions, and surfaces approval gates at human-meaningful checkpoints. A web dashboard (`feather serve`) provides a live view of everything.
+featherkit is a local-first coding workflow that moves work through a four-stage **Frame → Build → Critic → Sync** loop. The CLI bootstraps project files, the orchestrator picks runnable tasks from shared state, each phase runs through a real model harness, and results are written back to disk so the next role can continue from the same source of truth. The loop is intentionally explicit: Frame plans, Build implements, Critic checks against done criteria, and Sync prepares the next handoff.
 
-The system is entirely local. No hosted service. State lives in `.project-state/` on disk. Models are invoked via the Claude CLI (Anthropic) or the Pi agent runtime (all other providers).
+Everything is stored inside the repo. Runtime coordination lives in `.project-state/`, project configuration lives in `featherkit/config.json`, and client integrations are written to files like `.mcp.json`. Anthropic roles run through `claude --print`; other providers go through the Pi loader wrapper. The optional dashboard server exposes the same local state over HTTP and WebSocket so the SPA can observe and edit it without introducing a separate hosted backend.
 
 ---
 
 ## Key Components
 
 ### CLI (`dist/cli.js`)
-The `feather` binary. Entry point for all user-facing commands: `init`, `serve`, `orchestrate`, `approve`, `auth`, `task`, `verify`, `handoff`, `review`, `mcp`, `skills`, `pkg`, `doctor`.
-
-Built as a single tsup bundle from `src/cli.ts`. ESM-only, Node 22+.
+The `featherkit` binary is built from `src/cli.ts` with commander. It wires together the user-facing commands for setup, orchestration, review, verification, MCP installation, package inspection, and dashboard serving. The CLI reads the package version at build time and remains ESM-only.
 
 ### MCP Server (`dist/server.js`)
-A stdio-transport MCP server. Spawned by Claude Code or OpenCode per-session — never a background daemon. Exposes ~16 tools covering project state, memory, task management, and phase gating. Uses `state.json` and `memory.db` as its backing store.
+A stdio MCP server built from `src/mcp/server.ts`. It is spawned per session by external clients, not run as a long-lived daemon. Tool handlers use shared state I/O from `src/mcp/state-io.ts`, which validates data with `zod/v4` and writes `state.json` atomically so CLI commands, MCP tools, and the dashboard all observe the same task graph safely.
 
 ### Orchestrator (`src/orchestrator/`)
-The autonomous pipeline driver. Key modules:
-- `loop.ts` — task picking, phase sequencing, critic loopback logic
-- `runner.ts` — spawns `claude --print` (Anthropic) or `piLoader.invokeProvider` (other providers)
-- `lock.ts` — PID-based project lock with heartbeat, prevents concurrent orchestrator runs
-- `gates.ts` — approval gate implementations (editor / prompt / pause / auto)
-- `router.ts` — LLM router: reads critic stdout, returns `advance | loopback | blocked` via `claude --print`
-- `tui/` — terminal dashboard using `@mariozechner/pi-tui`
-- `event-log.ts` — appends `OrchestratorEvent` JSON lines to `.project-state/events.jsonl` for cross-process relay
+The orchestrator is the runtime core. `loop.ts` loads config and workflow state, picks runnable tasks, applies gates, retrieves memory context when enabled, runs each phase, and records events. `runner.ts` chooses between Claude Code and the Pi integration per role, streams stdout back into the event pipeline, and persists discovered Claude session IDs for follow-up phases. Critic results can loop a task back to Build instead of always advancing.
 
 ### Memory System (`src/memory/`)
-SQLite-backed long-term memory with structured retrieval. Key modules:
-- `db.ts` — opens `memory.db`, runs migrations, returns handle
-- `store.ts` — `MemoryStore` class: insert, query, supersede, deactivate
-- `retrieval/` — keyword (BM25-style), vector, and scoped channels; reranker; context assembler
-- `write/` — extraction, worthiness scoring, deduplication, commit pipeline
-
-Memory is opt-in: `config.memory.enabled = false` (default) means zero SQLite activity at runtime.
+Memory is optional and SQLite-backed. `db.ts` opens and migrates the database, `store.ts` manages inserts/query/supersede/deactivate operations, and the retrieval/write pipelines assemble context or persist phase learnings. When `config.memory.enabled` is false, runtime code skips database access rather than silently pretending memory exists.
 
 ### Workflow Engine (`src/workflow/`)
-Configurable phase DAG replacing the original hard-coded FSM.
-- `schema.ts` — `WorkflowSchema` (Zod): nodes, edges, conditions
-- `engine.ts` — `nextStep(task, workflow)`: pure function, returns the next role or null
-- `default.ts` — `DEFAULT_WORKFLOW` constant (Frame → Build → Critic → Sync with loopback edge)
+Workflow shape is configurable instead of hard-coded. `schema.ts` defines the DAG, `default.ts` provides the default four-role loop with critic fail loopback, and `engine.ts` walks completions to determine the next role without mutating state.
+
+### Dashboard Server + SPA
+`src/server/index.ts` starts a local HTTP server bound to `127.0.0.1`, writes a short-lived bearer token into `.project-state/dashboard.token`, and mounts routes for `/api/state`, `/api/tasks/:id/run`, `/api/workflow`, `/api/workflow/validate`, and `/api/connections`. `ws.ts` upgrades `/events` connections and tails the orchestrator event log so the React dashboard can update live. The frontend in `featherkit-dashboard/` is a Vite-built React SPA using TanStack Query, React Flow, and related UI tooling.
 
 ### Pi Integration (`src/integrations/pi-loader.ts`)
-Wraps `@mariozechner/pi-coding-agent` into a `PiLoader` interface used by the runner for non-Anthropic providers. Handles provider/skill/MCP discovery, OAuth credential reading via `AuthStorage`, and agent session lifecycle.
-
-### Dashboard Backend (`src/server/` — in progress)
-HTTP + WebSocket server (Node `http` + `ws`). Binds to `127.0.0.1` only. Key routes:
-- `GET/PATCH /api/state` — task state read/write
-- `GET/PUT /api/workflow` — workflow DAG read/write
-- `GET /api/connections/*` — provider auth status and MCP server management
-- `GET /api/memory/*` — memory graph, timeline, trace (requires `memory.enabled`)
-- `/events` WebSocket — tails `events.jsonl` and broadcasts to connected clients
-
-### Dashboard Frontend (`featherkit-dashboard/`)
-React SPA served as static files by `feather serve`. Stack: React 18, TanStack Query v5, Zustand, React Flow, `@dnd-kit`.
+For non-Anthropic roles, the runner uses the Pi loader wrapper to discover providers, skills, and MCP servers, then invokes the selected provider through a common interface.
 
 ---
 
 ## Data Flow
 
 ```
-feather orchestrate
+featherkit/config.json
   │
-  ├── reads config from featherkit/config.json
-  ├── reads/writes .project-state/state.json  (via state-io.ts)
-  ├── appends .project-state/events.jsonl     (one JSON line per event)
-  ├── spawns claude --print                   (Anthropic roles)
-  └── calls piLoader.invokeProvider           (all other roles)
+  ├── tells the orchestrator where state/workflow/memory live
+  └── tells the dashboard server which files to expose
 
-dist/server.js (MCP, per-session stdio)
+.project-state/state.json
   │
-  ├── reads/writes .project-state/state.json
-  └── reads/writes .project-state/memory.db
+  ├── read/written by CLI commands and MCP tools
+  ├── updated by the orchestrator as phases advance
+  └── read by the dashboard API for live task state
 
-feather serve
+.project-state/events.jsonl
   │
-  ├── serves featherkit-dashboard/dist/ as static files
-  ├── exposes HTTP API over /api/*
-  ├── tails .project-state/events.jsonl → broadcasts over WebSocket
-  └── reads/writes .mcp.json
+  └── appended by orchestrator events, then tailed by /events WebSocket
+
+.mcp.json
+  │
+  └── managed by install/generator flows and the dashboard connections route
 ```
 
-`state.json` is the shared coordination primitive. Both the orchestrator and the MCP server use `saveState` (atomic temp-file + rename) — safe for concurrent access.
+`state.json` is the main coordination primitive. Shared helpers write it with a temp-file-plus-rename pattern so multiple local processes can cooperate without partial writes.
 
 ---
 
 ## Conventions
 
-- ESM only — `.js` extensions in all import specifiers, even for `.ts` source files.
-- `zod/v4` everywhere — not `zod`. The MCP SDK requires Standard Schema.
-- No `console.log` in `src/mcp/` — stdout is the JSON-RPC transport. Use `console.error` for server-side logs.
-- Templates are pure functions: `(config: FeatherConfig) => string`. No side effects, no I/O.
-- Config generators deep-merge with existing files — never overwrite a file the user may have edited.
-- Atomic writes for all mutable state: temp file + `fs.rename`. Never `fs.writeFile` directly on `state.json`.
-- The orchestrator must not throw to its caller — all errors are caught per-phase and emitted as `phase:failed` events.
-- Memory tools check `config.memory.enabled` before opening the database. If disabled, tools return a clear error rather than silently returning empty results.
+- ESM only: source imports use `.js` specifiers even when targeting `.ts` files.
+- Use `zod/v4` rather than `zod` so schemas remain compatible with the MCP SDK.
+- Never use `console.log` inside `src/mcp/`; stdout is reserved for JSON-RPC transport.
+- Template generators are pure and config writers deep-merge instead of clobbering user edits.
+- Mutable shared state uses atomic writes, especially for `.project-state/state.json`.
+- The orchestrator handles failures per phase and emits failure events instead of crashing the whole run.
+- Memory-aware code must check `config.memory.enabled` before touching SQLite.
