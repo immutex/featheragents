@@ -1,9 +1,12 @@
 import { readFile } from 'node:fs/promises';
+import type { IncomingMessage, ServerResponse } from 'node:http';
 import { join } from 'node:path';
 
+import type { FeatherConfig } from '../../config/schema.js';
 import { MemoryStore } from '../../memory/store.js';
 import { openMemoryDb } from '../../memory/db.js';
 import { loadConfig } from '../../mcp/state-io.js';
+import { sendJson } from '../utils.js';
 
 type MemoryGraphRow = {
   memory_id: string;
@@ -62,14 +65,40 @@ export type MemoryGraphEdge = {
   weight: number | null;
 };
 
-export async function getMemoryGraph(scope: string): Promise<{ nodes: MemoryGraphNode[]; edges: MemoryGraphEdge[] }> {
-  const config = await loadConfig();
-  if (!config?.memory.enabled) {
+type MemoryRouteContext = {
+  config: FeatherConfig;
+  cwd?: string;
+  readOnly?: boolean;
+};
+
+function resolveMemoryDbPath(config: FeatherConfig, cwd: string): string {
+  return config.memory.dbPath === ':memory:' ? ':memory:' : join(cwd, config.memory.dbPath);
+}
+
+async function resolveMemoryContext(config: FeatherConfig | undefined, cwd: string | undefined): Promise<{ config: FeatherConfig; cwd: string }> {
+  const resolvedCwd = cwd ?? process.cwd();
+  const resolvedConfig = config ?? await loadConfig(resolvedCwd);
+
+  if (!resolvedConfig) {
+    throw new Error('Unable to load featherkit/config.json.');
+  }
+
+  return { config: resolvedConfig, cwd: resolvedCwd };
+}
+
+export async function getMemoryGraph(
+  scope: string,
+  config?: FeatherConfig,
+  cwd?: string,
+): Promise<{ nodes: MemoryGraphNode[]; edges: MemoryGraphEdge[]; memoryCount: number }> {
+  const context = await resolveMemoryContext(config, cwd);
+  const resolvedConfig = context.config;
+
+  if (!resolvedConfig.memory.enabled) {
     throw new Error('Memory is disabled in featherkit/config.json.');
   }
 
-  const dbPath = config.memory.dbPath === ':memory:' ? ':memory:' : join(process.cwd(), config.memory.dbPath);
-  const db = openMemoryDb(dbPath);
+  const db = openMemoryDb(resolveMemoryDbPath(resolvedConfig, context.cwd));
 
   try {
     const rows = db.prepare(`
@@ -124,7 +153,11 @@ export async function getMemoryGraph(scope: string): Promise<{ nodes: MemoryGrap
       }
     }
 
-    return { nodes: [...nodes.values()], edges: [...edges.values()] };
+    return {
+      nodes: [...nodes.values()],
+      edges: [...edges.values()],
+      memoryCount: nodes.size,
+    };
   } finally {
     db.close();
   }
@@ -135,14 +168,16 @@ export async function getMemoryGraph(scope: string): Promise<{ nodes: MemoryGrap
  * Each element is a { taskId, phase, sessionId, recordedAt, trace } record.
  * The last element is the most recent phase's trace.
  */
-export async function getMemoryTrace(taskId: string): Promise<unknown[] | null> {
-  const config = await loadConfig();
-  if (!config?.memory.enabled) {
+export async function getMemoryTrace(taskId: string, config?: FeatherConfig, cwd?: string): Promise<unknown[] | null> {
+  const context = await resolveMemoryContext(config, cwd);
+  const resolvedConfig = context.config;
+
+  if (!resolvedConfig.memory.enabled) {
     throw new Error('Memory is disabled in featherkit/config.json.');
   }
 
   try {
-    const raw = await readFile(join(process.cwd(), config.stateDir, 'memory-traces', `${taskId}.json`), 'utf8');
+    const raw = await readFile(join(context.cwd, resolvedConfig.stateDir, 'memory-traces', `${taskId}.json`), 'utf8');
     const parsed = JSON.parse(raw) as unknown[];
     return Array.isArray(parsed) ? parsed : [parsed];
   } catch (error) {
@@ -154,19 +189,24 @@ export async function getMemoryTrace(taskId: string): Promise<unknown[] | null> 
   }
 }
 
-export async function getMemoryById(id: string): Promise<{
+export async function getMemoryById(
+  id: string,
+  config?: FeatherConfig,
+  cwd?: string,
+): Promise<{
   memory: ReturnType<MemoryStore['getById']>;
   entities: Array<{ id: string; kind: string; value: string; normalizedValue: string; role: string }>;
   edges: Array<{ id: string; fromMemoryId: string; toMemoryId: string; relation: string; weight: number | null; createdAt: number }>;
   accessLog: Array<{ id: string; actor: string | null; reason: string | null; accessedAt: number }>;
 } | null> {
-  const config = await loadConfig();
-  if (!config?.memory.enabled) {
+  const context = await resolveMemoryContext(config, cwd);
+  const resolvedConfig = context.config;
+
+  if (!resolvedConfig.memory.enabled) {
     throw new Error('Memory is disabled in featherkit/config.json.');
   }
 
-  const dbPath = config.memory.dbPath === ':memory:' ? ':memory:' : join(process.cwd(), config.memory.dbPath);
-  const db = openMemoryDb(dbPath);
+  const db = openMemoryDb(resolveMemoryDbPath(resolvedConfig, context.cwd));
 
   try {
     const store = new MemoryStore(db);
@@ -225,4 +265,51 @@ export async function getMemoryById(id: string): Promise<{
   } finally {
     db.close();
   }
+}
+
+export async function handleMemoryRoute(
+  req: IncomingMessage,
+  res: ServerResponse,
+  pathname: string,
+  context: MemoryRouteContext,
+): Promise<boolean> {
+  if (!pathname.startsWith('/api/memory')) {
+    return false;
+  }
+
+  if (!context.config.memory.enabled) {
+    sendJson(res, 404, { error: 'Memory is disabled.' });
+    return true;
+  }
+
+  const cwd = context.cwd ?? process.cwd();
+
+  if (pathname === '/api/memory/graph' && req.method === 'GET') {
+    const url = new URL(req.url ?? pathname, 'http://127.0.0.1');
+    const scope = url.searchParams.get('scope') ?? 'repo';
+    const graph = await getMemoryGraph(scope, context.config, cwd);
+    sendJson(res, 200, { ...graph, truncated: false });
+    return true;
+  }
+
+  const traceMatch = pathname.match(/^\/api\/memory\/trace\/([^/]+)$/);
+  if (traceMatch && req.method === 'GET') {
+    const trace = await getMemoryTrace(decodeURIComponent(traceMatch[1]!), context.config, cwd);
+    sendJson(res, 200, trace ?? []);
+    return true;
+  }
+
+  const detailMatch = pathname.match(/^\/api\/memory\/([^/]+)$/);
+  if (detailMatch && req.method === 'GET') {
+    const detail = await getMemoryById(decodeURIComponent(detailMatch[1]!), context.config, cwd);
+    if (detail === null) {
+      sendJson(res, 404, { error: `Memory not found: ${decodeURIComponent(detailMatch[1]!)}` });
+      return true;
+    }
+
+    sendJson(res, 200, detail);
+    return true;
+  }
+
+  return false;
 }

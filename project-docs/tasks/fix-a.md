@@ -18,13 +18,13 @@ The dashboard (`featherkit-dashboard/src/lib/queries.ts`) calls all three endpoi
 - **`test/server/memory-route.test.ts`** *(new)* — unit test: mock a project with a populated SQLite DB, call `handleMemoryRoute` directly for each endpoint, assert 200 responses with valid JSON shapes.
 
 ## Done Criteria
-- [ ] `GET /api/memory/graph?scope=repo` returns 200 with `{ nodes: [], edges: [], memoryCount: 0 }` on a fresh project (memory enabled, no entries yet).
-- [ ] `GET /api/memory/graph?scope=repo` returns non-empty nodes/edges on a project with memory data.
-- [ ] `GET /api/memory/<id>` returns 200 with `{ memory: {...}, edges: [...] }` for a known memory id.
-- [ ] `GET /api/memory/trace/<taskId>` returns 200 with an array (empty if no trace).
-- [ ] All three endpoints return 401 without a valid token (inherited from server auth middleware).
-- [ ] `bun run build` passes. `bun test test/server/memory-route.test.ts` passes.
-- [ ] Memory tab in the dashboard (opened via `feather serve`) shows the graph view without errors when memory is enabled.
+- [x] `GET /api/memory/graph?scope=repo` returns 200 with `{ nodes: [], edges: [], memoryCount: 0 }` on a fresh project (memory enabled, no entries yet).
+- [x] `GET /api/memory/graph?scope=repo` returns non-empty nodes/edges on a project with memory data.
+- [x] `GET /api/memory/<id>` returns 200 with `{ memory: {...}, edges: [...] }` for a known memory id.
+- [x] `GET /api/memory/trace/<taskId>` returns 200 with an array (empty if no trace).
+- [x] All three endpoints return 401 without a valid token (inherited from server auth middleware).
+- [x] `bun run build` passes. `bun test test/server/memory-route.test.ts` passes.
+- [x] Memory tab in the dashboard (opened via `feather serve`) shows the graph view without errors when memory is enabled.
 
 ## Risks
 - `handleMemoryRoute` in memory.ts may open a new SQLite connection per request rather than reusing one — if so, it may need the `cwd` path to find `featherkit/memory.db`. Verify the route correctly resolves the DB path from `config` and `cwd`.

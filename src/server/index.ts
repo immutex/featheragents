@@ -7,6 +7,7 @@ import { URL } from 'node:url';
 import type { FeatherConfig } from '../config/schema.js';
 import { requireAuth } from './auth.js';
 import { handleConnectionsRoute } from './routes/connections.js';
+import { handleMemoryRoute } from './routes/memory.js';
 import { handleStateRoute } from './routes/state.js';
 import { handleTasksRoute } from './routes/tasks.js';
 import { handleWorkflowRoute } from './routes/workflow.js';
@@ -77,6 +78,7 @@ export async function startServer(config: FeatherConfig, port: number, options: 
       const context = { config, cwd, readOnly };
       if (await handleStateRoute(req, res, pathname, context)) return;
       if (await handleWorkflowRoute(req, res, pathname, context)) return;
+      if (await handleMemoryRoute(req, res, pathname, context)) return;
       if (await handleConnectionsRoute(req, res, pathname, context)) return;
       if (await handleTasksRoute(req, res, pathname, context)) return;
 
