@@ -11,6 +11,7 @@ import { defaultConfig } from '../../src/config/defaults.js';
 import type { FeatherConfig, ProjectState, TaskEntry } from '../../src/config/schema.js';
 import { saveState } from '../../src/mcp/state-io.js';
 import { startServer, type DashboardServer } from '../../src/server/index.js';
+import { DEFAULT_WORKFLOW } from '../../src/workflow/default.js';
 
 function makeTmpDir(): string {
   return join(tmpdir(), `fa-server-${randomUUID()}`);
@@ -303,6 +304,15 @@ describe('dashboard server routes', () => {
     expect(putResponse.body).toMatchObject({ error: 'Invalid workflow payload.' });
   });
 
+  it('returns the built-in default workflow when the saved workflow file is missing', async () => {
+    await rm(join(cwd, 'project-docs', 'workflows', 'default.json'));
+
+    const response = await requestJson(server.port, 'GET', '/api/workflow', server.token);
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toEqual(DEFAULT_WORKFLOW);
+  });
+
   it('persists workflow node metadata and positions to disk on save', async () => {
     const workflow = {
       version: 1,
@@ -320,6 +330,25 @@ describe('dashboard server routes', () => {
 
     const saved = JSON.parse(await readFile(join(cwd, 'project-docs', 'workflows', 'default.json'), 'utf8'));
     expect(saved).toMatchObject(workflow);
+  });
+
+  it('creates the workflow directory when saving after the workflow file is deleted', async () => {
+    await rm(join(cwd, 'project-docs', 'workflows'), { recursive: true, force: true });
+
+    const workflow = {
+      version: 1,
+      start: 'frame',
+      nodes: [
+        { id: 'frame', role: 'frame' },
+        { id: 'build', role: 'build' },
+      ],
+      edges: [{ from: 'frame', to: 'build' }],
+    };
+
+    const response = await requestJson(server.port, 'PUT', '/api/workflow', server.token, workflow);
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(await readFile(join(cwd, 'project-docs', 'workflows', 'default.json'), 'utf8'))).toEqual(workflow);
   });
 
   it('rejects workflow payloads when model or promptTemplate have invalid types', async () => {

@@ -1,11 +1,12 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { describe, afterAll, expect, it } from 'vitest';
+import { describe, afterAll, afterEach, expect, it } from 'vitest';
 import WebSocket from 'ws';
 
 import { ProjectStateSchema } from '../../src/config/schema.js';
 import { startServer, type DashboardServer } from '../../src/server/index.js';
+import { DEFAULT_WORKFLOW } from '../../src/workflow/default.js';
 import { WorkflowSchema } from '../../src/workflow/schema.js';
 import { cleanup, createTmpProject, readToken, waitForHttp } from './helpers.js';
 
@@ -13,9 +14,22 @@ describe('e2e serve', () => {
   let tmpDir = '';
   let server: DashboardServer | null = null;
 
-  afterAll(async () => {
+  async function cleanupTestResources(): Promise<void> {
     await server?.close();
-    if (tmpDir) await cleanup(tmpDir);
+    server = null;
+
+    if (tmpDir) {
+      await cleanup(tmpDir);
+      tmpDir = '';
+    }
+  }
+
+  afterEach(async () => {
+    await cleanupTestResources();
+  });
+
+  afterAll(async () => {
+    await cleanupTestResources();
   });
 
   it(
@@ -54,4 +68,21 @@ describe('e2e serve', () => {
     },
     30_000,
   );
+
+  it('returns the built-in workflow when the saved workflow file is missing', async () => {
+    ({ tmpDir } = await createTmpProject('e2e-serve-missing-workflow'));
+    const config = JSON.parse(await readFile(join(tmpDir, 'featherkit', 'config.json'), 'utf8'));
+    await rm(join(tmpDir, config.workflow), { force: true });
+
+    server = await startServer(config, 0, { cwd: tmpDir });
+    await waitForHttp(`${server.url}/api/state`, 5_000);
+
+    const token = await readToken(tmpDir, config.stateDir);
+    const workflowResponse = await fetch(`${server.url}/api/workflow`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    expect(workflowResponse.status).toBe(200);
+    expect(await workflowResponse.json()).toEqual(DEFAULT_WORKFLOW);
+  });
 });
