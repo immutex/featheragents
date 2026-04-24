@@ -2,9 +2,9 @@
 
 **From:** sync
 **To:** frame
-**Time:** 2026-04-24T04:51:54.195Z
-**Task:** fix-home-a
+**Time:** 2026-04-24T23:08:05.469Z
+**Task:** dash-agents-b
 
 ## Notes
 
-fix-home-a is complete. Committed in worktree (5042500), merged into main cleanly. All 5 done criteria checked off in task file. Browser-verified by critic. Files changed: Projects.tsx, queries.ts, ws.ts, events.ts, server/index.ts, chat.ts (new), events.ts (new), routes.test.ts. Task is done.
+dash-agents-b complete. Two commits merged cleanly from worktree into main (28dfc8d + 691cb08 critic fix). No merge conflicts — git auto-merged queries.ts and schema.ts. 460 tests pass, root build passes. Task done.
