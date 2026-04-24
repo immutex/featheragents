@@ -3,6 +3,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { resolve } from 'node:path';
 
 import type { FeatherConfig } from '../../config/schema.js';
+import { DEFAULT_WORKFLOW } from '../../workflow/default.js';
 import { WorkflowSchema } from '../../workflow/schema.js';
 import { readJsonBody, sendJson, writeJsonAtomic } from '../utils.js';
 
@@ -11,6 +12,10 @@ type WorkflowRouteContext = {
   cwd?: string;
   readOnly?: boolean;
 };
+
+function isMissingFileError(error: unknown): error is NodeJS.ErrnoException {
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT';
+}
 
 function validateWorkflowGraph(workflow: { start: string; nodes: Array<{ id: string }>; edges: Array<{ from: string; to: string }> }): string[] {
   const nodeIds = new Set(workflow.nodes.map((node) => node.id));
@@ -89,6 +94,11 @@ export async function handleWorkflowRoute(
       const raw = JSON.parse(await readFile(workflowPath, 'utf8'));
       sendJson(res, 200, WorkflowSchema.parse(raw));
     } catch (error) {
+      if (isMissingFileError(error)) {
+        sendJson(res, 200, DEFAULT_WORKFLOW);
+        return true;
+      }
+
       sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
     }
     return true;
