@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { dirname, resolve } from 'node:path';
 
 import { z } from 'zod/v4';
 import type { FeatherConfig, VerificationRunSummary } from '../../config/schema.js';
@@ -93,9 +93,6 @@ export async function handleVerificationRoute(
 
     const configPath = resolve(cwd, 'featherkit', 'config.json');
     const tmpPath = configPath + '.tmp';
-    const { writeFile, rename } = await import('node:fs/promises');
-    const { dirname } = await import('node:path');
-    const { mkdir } = await import('node:fs/promises');
     await mkdir(dirname(configPath), { recursive: true });
     await writeFile(tmpPath, JSON.stringify(config, null, 2) + '\n', 'utf8');
     await rename(tmpPath, configPath);

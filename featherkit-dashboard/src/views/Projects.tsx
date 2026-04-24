@@ -120,7 +120,7 @@ export function ProjectsView({
             {sub === 'tasks' && <TasksSection tasks={project.tasks} onToast={onToast} />}
             {sub === 'chat' && <ChatPanel project={project} />}
             {sub === 'workflow' && <WorkflowCanvas onToast={onToast} />}
-            {sub === 'verification' && <VerificationView tasks={project.tasks} currentTaskId={null} onToast={onToast} />}
+            {sub === 'verification' && <VerificationView tasks={project.tasks} currentTaskId={activeTaskId ?? null} onToast={onToast} />}
             {sub === 'history' && <HistoryTimeline />}
           </motion.div>
         </AnimatePresence>

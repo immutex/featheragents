@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { TaskEntry } from '@/data/mock';
 import { SectionLabel } from '@/components/ui/SectionLabel';
 import { Badge } from '@/components/ui/Badge';
@@ -30,8 +30,26 @@ export function VerificationView({
   const [showSetup, setShowSetup] = useState(false);
   const setupDetect = useSetupDetectQuery();
   const setupMutation = useSetupVerificationMutation();
+  const runAllFns = useRef<Map<string, () => void>>(new Map());
+  const [runningAll, setRunningAll] = useState(false);
 
   const hasTasks = tasks.length > 0;
+
+  function registerRun(taskId: string, fn: () => void) {
+    runAllFns.current.set(taskId, fn);
+  }
+
+  function unregisterRun(taskId: string) {
+    runAllFns.current.delete(taskId);
+  }
+
+  async function handleRunAll() {
+    setRunningAll(true);
+    const fns = [...runAllFns.current.values()];
+    await Promise.all(fns.map((fn) => fn()));
+    setRunningAll(false);
+    onToast({ tone: 'ok', title: 'All checks triggered', desc: `Ran verification for ${fns.length} task(s).` });
+  }
 
   function handleDetect() {
     setShowSetup(true);
@@ -64,9 +82,16 @@ export function VerificationView({
           <h2 className="text-lg font-semibold">Verification Runs</h2>
           <p className="text-sm text-ink-4 mt-1">Live check results per task, with on-demand re-runs from the dashboard.</p>
         </div>
-        <Button variant="outline" size="sm" onClick={handleDetect}>
-          <Wand size={14} />Auto-setup
-        </Button>
+        <div className="flex items-center gap-2">
+          {hasTasks && (
+            <Button variant="outline" size="sm" onClick={handleRunAll} disabled={runningAll}>
+              <Play size={14} />{runningAll ? 'Running…' : 'Run all'}
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={handleDetect}>
+            <Wand size={14} />Auto-setup
+          </Button>
+        </div>
       </div>
 
       <AnimatePresence>
@@ -136,7 +161,7 @@ export function VerificationView({
           </div>
           <motion.div initial="initial" animate="animate" variants={stagger(0.04)}>
             {tasks.map((task) => (
-              <VerificationRow key={task.id} task={task} isActive={task.id === currentTaskId} />
+              <VerificationRow key={task.id} task={task} isActive={task.id === currentTaskId} registerRun={registerRun} unregisterRun={unregisterRun} />
             ))}
           </motion.div>
         </Card>
@@ -163,11 +188,16 @@ function formatCheckDuration(durationMs: number): string {
   return `${(durationMs / 1000).toFixed(1)}s`;
 }
 
-function VerificationRow({ task, isActive }: { task: TaskEntry; isActive: boolean }) {
+function VerificationRow({ task, isActive, registerRun, unregisterRun }: { task: TaskEntry; isActive: boolean; registerRun: (id: string, fn: () => void) => void; unregisterRun: (id: string) => void }) {
   const verification = useVerificationQuery(task.id);
   const rerun = useRunVerification(task.id);
   const [expanded, setExpanded] = useState(false);
   const checks = verification.data?.checks ? Object.entries(verification.data.checks) : [];
+
+  useEffect(() => {
+    registerRun(task.id, () => rerun.mutate());
+    return () => unregisterRun(task.id);
+  }, [task.id, registerRun, unregisterRun, rerun]);
 
   return (
     <motion.div
