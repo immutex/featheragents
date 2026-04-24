@@ -445,7 +445,7 @@ function AgentEditor({
             </div>
             <div>
               <label className="text-xs text-ink-5 uppercase tracking-wider mb-1.5 block">Model</label>
-              <ModelSelect provider={provider} value={model} onChange={setModel} />
+              <ModelSelect key={provider} provider={provider} value={model} onChange={setModel} />
             </div>
           </div>
 
@@ -543,7 +543,7 @@ function NewAgentForm({
             </div>
             <div>
               <label className="text-xs text-ink-5 uppercase tracking-wider mb-1.5 block">Model</label>
-              <ModelSelect provider={provider} value={model} onChange={setModel} />
+              <ModelSelect key={provider} provider={provider} value={model} onChange={setModel} />
             </div>
           </div>
 
