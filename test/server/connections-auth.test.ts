@@ -12,6 +12,7 @@ describe('listConnectionProviders', () => {
       createPiAuthStorage: () => ({
         get: vi.fn(),
         hasAuth: vi.fn().mockResolvedValue(false),
+        list: () => [],
       }),
       createPiLoader: vi.fn().mockResolvedValue({
         listProviders: vi.fn().mockResolvedValue([{ provider: 'openai', models: ['gpt-5'] }]),
@@ -39,6 +40,35 @@ describe('listConnectionProviders', () => {
       createPiAuthStorage: () => ({
         get: vi.fn().mockResolvedValue({ expires: Date.now() + 60_000 }),
         hasAuth: vi.fn().mockResolvedValue(true),
+        list: () => ['openai'],
+      }),
+      createPiLoader: vi.fn().mockResolvedValue({
+        listProviders: vi.fn().mockResolvedValue([{ provider: 'openai', models: ['gpt-5'] }]),
+      }) as never,
+      getAgentDir: () => '/tmp/pi',
+      runCommand: vi.fn(async (file: string) => ({ exitCode: file === 'pi' ? 0 : 1 })) as never,
+    });
+
+    expect(providers.find((provider) => provider.provider === 'openai')).toMatchObject({
+      status: 'connected',
+      connected: true,
+    });
+  });
+
+  it('resolves provider aliases via hyphen-separated prefix matching', async () => {
+    const config = defaultConfig('connections-alias');
+    config.models = [
+      { role: 'build', provider: 'anthropic', model: 'claude-sonnet-4-20250514' },
+      { role: 'critic', provider: 'openai', model: 'gpt-5' },
+    ];
+
+    // auth.json stores "openai-codex" but config uses "openai"
+    const providers = await listConnectionProviders(config, '/tmp/project', {
+      claudeDir: '/missing',
+      createPiAuthStorage: () => ({
+        get: vi.fn().mockResolvedValue({ expires: Date.now() + 60_000 }),
+        hasAuth: vi.fn().mockResolvedValue(true),
+        list: () => ['openai-codex'],
       }),
       createPiLoader: vi.fn().mockResolvedValue({
         listProviders: vi.fn().mockResolvedValue([{ provider: 'openai', models: ['gpt-5'] }]),

@@ -38,6 +38,7 @@ describe('auth command helpers', () => {
       get: getAuthMock,
       hasAuth: hasAuthMock,
       remove: removeAuthMock,
+      list: () => [],
     }),
     createPiLoader: createPiLoaderMock,
     getAgentDir: () => '/tmp/pi',

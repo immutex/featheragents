@@ -1,30 +1,20 @@
 # Latest Handoff
 
-**From:** sync
+**From:** build
 **To:** sync
-**Time:** 2026-04-23T18:27:19.795Z
-**Task:** agents-a
+**Time:** 2026-04-24T04:46:21.592Z
+**Task:** fix-connections-a
 
 ## Notes
 
-## What was done
-- Added `GET /api/agents` and `PUT /api/agents` route in src/server/routes/agents.ts — GET returns config.models, PUT deep-merges updated models array back into featherkit/config.json atomically
-- Registered handleAgentsRoute in src/server/index.ts
-- Replaced FK_DATA.agents mock in featherkit-dashboard/src/views/Agents.tsx with useAgentsQuery() hook; save action calls usePatchAgents() mutation
-- Removed FK_DATA.mcpServers section from Agents.tsx (dash-e scope, not this task)
-- Added useAgentsQuery and usePatchAgents to featherkit-dashboard/src/lib/queries.ts
-- Added test/server/agents-route.test.ts covering GET, PUT, and read-only 409 path
-- All 429 tests pass. Merged worktree/agents-a → main and worktree removed.
+Applied all 3 critic suggestions on top of the merged fix-connections-a work:
 
-## What is next
-Task is complete. No further action needed.
+1. **Typed `list()` on `PiAuthStorage`** — Added `list: () => string[]` to the local type definition. Removed both `(authStorage as any).list?.()` casts. Mock objects in tests updated with `list: () => []`.
 
-## Blockers / open questions
-None.
+2. **Shared `resolveAuthProvider()` helper** — Extracted to a top-level function `(provider: string, authStorage: PiAuthStorage) => string`. Both `listConnectionProviders()` and the login handler now call the same function instead of duplicating the logic or creating a second `authStorage` instance.
 
-## Files changed
-- src/server/routes/agents.ts (new)
-- src/server/index.ts
-- featherkit-dashboard/src/lib/queries.ts
-- featherkit-dashboard/src/views/Agents.tsx
-- test/server/agents-route.test.ts (new)
+3. **Separator-aware prefix matching** — Changed from `key.startsWith(provider)` to `key.startsWith(provider + '-')`. This prevents `"open"` from matching `"openrouter"` — only hyphen-suffixed aliases like `"openai-codex"` are matched.
+
+Added a test case for alias resolution (`openai` → `openai-codex` in auth.json).
+
+Results: 442 tests pass, 0 fail. Both root and dashboard builds pass. Phase gate: PASS WITH WARNINGS (scope warnings are from the prior merged worktree diff, not new changes).
