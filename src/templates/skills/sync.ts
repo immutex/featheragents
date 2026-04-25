@@ -5,16 +5,24 @@ export function renderSyncSkill(config: FeatherConfig): string {
   const steps = integrationSteps(config, 'sync');
   return `---
 name: sync
-description: Write a self-contained handoff so the next role can resume without losing context.
+description: Close out a session — write a complete handoff so the next role can resume without losing a single bit of context.
 ---
 
 # /sync — Sync State and Hand Off
 
-Close out the session. Write a handoff that makes the next role productive from the first message.
+> The handoff you write is the only thing the next role will have. If you omit something, it stays lost.
+> Write as if you're handing off to someone who has never seen this project.
 
-## When to use
+## Role boundary
 
-Use \`/sync\` at the end of any work session — after a build phase, after a critic review, or when switching between roles or models. Also use it when you need to park a task and pick it up later.
+| Allowed | Prohibited |
+|---|---|
+| Read files and state | Modify source files |
+| Write handoff and progress notes | Make code changes or commits |
+| Update task status via MCP tools | Make architectural decisions (document them, don't make them) |
+| Call \`mark_phase_complete\` | Start implementation work |
+
+---
 
 ## Step-by-step
 
@@ -25,59 +33,84 @@ mcp__featherkit__get_task        { taskId: "<id>" }
 mcp__featherkit__get_active_focus
 \`\`\`
 
-Review what was accomplished this session and what remains.
+Read the task goal, progress log, phase completions, and any existing review notes. Build a mental model of exactly where things stand.
 
-### 2. Assess completeness
+### 2. Assess completeness honestly
 
-- Which done criteria are met?
-- What is the next concrete action?
-- Are there blockers, open questions, or decisions that were deferred?
+Answer these before writing anything:
+
+- Which done criteria are fully met? Which are not?
+- What is the single most important next action?
+- Are there blockers, deferred decisions, or open questions?
+- Did the critic have any findings that weren't addressed?
+- Is the task actually done, or does it need another build pass?
+
+If the task is done (all criteria met, critic approved, no blockers): mark it done in your handoff and advance.
+If work remains: be explicit about what remains — do not suggest the task is further along than it is.
 
 ### 3. Write the handoff
 
 \`\`\`
-mcp__featherkit__write_handoff  {
+mcp__featherkit__write_handoff {
   from: "<your role>",
   to: "<next role>",
   taskId: "<id>",
-  notes: "<handoff content>"
+  notes: "<handoff content — use the required format below>"
 }
 \`\`\`
 
-Your handoff notes should be self-contained. Use this structure:
+Required format:
 
 \`\`\`markdown
 ## What was done
-<Bullet list of completed work. Be specific: "Implemented atomicWrite in src/utils/fs.ts", not "worked on file writing".>
+- <Specific action> — <file or system> — <outcome>
+- ... (bullet per logical unit, not per tool call)
+
+## Status against done criteria
+- [x] <criterion fully met>
+- [ ] <criterion NOT met — what remains>
 
 ## What is next
-<The single most important next action. Then list remaining items in order.>
+**Immediate action:** <one specific thing the next role should do first>
+
+Remaining items (in priority order):
+1. <item>
+2. <item>
 
 ## Blockers / open questions
-<Anything that must be resolved before work can continue. If none, say "None".>
+<Anything that must be resolved before work can continue. Be precise: who needs to decide what. "None" if clean.>
 
-## Key decisions made
-<Any non-obvious choices made during this session and why. Omit if nothing notable.>
+## Key decisions made this session
+<Non-obvious choices and the rationale. Omit if nothing notable.>
 
 ## Files changed
-<List of files that were modified. Helps the next role orient quickly.>
+<List of files modified. Helps the next role orient quickly.>
+
+## Environment / setup notes
+<Branch name, migration state, env vars, anything needed to resume. Omit if standard.>
 \`\`\`
 
-### 4. Confirm
+Keep it under 400 words. If you find yourself writing more, you're documenting instead of handing off.
 
-Print "Handoff written: <from> → <to>" and stop.
+### 4. Log a progress note
+
+\`\`\`
+mcp__featherkit__append_progress {
+  taskId: "<id>",
+  role: "sync",
+  message: "Handoff written: <from> → <to>. <One sentence on task status.>"
+}
+\`\`\`
 
 ${steps}
 
 ### Final step — signal completion
 
-After all other steps are done, call:
-
 \`\`\`
 mcp__featherkit__mark_phase_complete {
   taskId: "<id>",
   phase: "sync",
-  summary: "<1–3 sentence summary of what was done>"
+  summary: "<1–3 sentences: what the session accomplished, what remains, who picks up next>"
 }
 \`\`\`
 
@@ -85,25 +118,11 @@ mcp__featherkit__mark_phase_complete {
 
 ## Hard rules
 
-**Do NOT:**
-- Write more than ~300 words in the handoff notes
-- Assume the next role has read this session's conversation
-- Omit blockers to make things look cleaner than they are
-- Write vague next actions ("continue implementation")
-- Use the sync skill to avoid completing work — sync is for session boundaries
-
-**Do:**
-- Make the "What is next" section specific enough to act on immediately
-- Include file paths where relevant
-- Mention the current branch or PR if applicable
-- Note any environment setup the next role will need
-
----
-
-## Token efficiency
-
-- \`get_task\` and \`get_active_focus\` together give full context — don't read source files during sync
-- One \`write_handoff\` call is all you need — it updates both state and latest-handoff.md
-- Keep handoff notes compact — the next role will read the source files themselves
+- Do not omit blockers to make the task look cleaner than it is
+- Do not write vague next actions like "continue implementation" — be specific
+- Do not use sync to avoid completing work that can be done now
+- Do not assume the next role has read this session's conversation — they haven't
+- Handoff notes must be self-contained; never reference "what we discussed" or "as mentioned above"
+- If the task is genuinely done, say so explicitly — do not leave the next role guessing
 `;
 }

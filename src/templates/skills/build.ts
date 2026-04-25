@@ -4,103 +4,145 @@ import { integrationSteps } from '../integration-steps.js';
 export function renderBuildSkill(config: FeatherConfig): string {
   return `---
 name: build
-description: Implement a task — read the task file, write code, commit small, log progress.
+description: Implement a task — load context, write code, commit small, run the gate, hand off.
 ---
 
 # /build — Implement a Task
 
-Read first. Build second. Log as you go.
+Read first. Build second. Gate before handoff.
 
-## When to use
+> **Stay in scope.** If you find an unrelated bug, log it as a separate task — do not fix it here.
+> **Commit small.** One logical change per commit. Never one giant "implement everything" commit at the end.
 
-Use \`/build\` when a task has been framed and is ready for implementation. The task file at \`project-docs/tasks/<id>.md\` should exist and have done criteria.
+## Role boundary
+
+| Allowed | Prohibited |
+|---|---|
+| Write, modify, delete files within the task scope | Modify files not listed in the task's Files section without noting it |
+| Run tests, builds, linters, formatters | Fix bugs found during review (those come back as loopbacks) |
+| Call all featherkit MCP tools | Silently expand scope |
+| Commit code changes | Skip \`verify_phase\` before handoff |
+
+---
 
 ## Step-by-step
 
-### 1. Load the task
+### 1. Load context (one call)
 
 \`\`\`
-mcp__featherkit__get_task  { taskId: "<id>" }
+mcp__featherkit__prepare_context_pack { forRole: "build", taskId: "<id>" }
 \`\`\`
 
-Read the goal, files list, done criteria, and risks. If there are open questions, resolve them before writing code — don't guess.
+This returns the task goal, done criteria, files list, risks, constraints, latest handoff notes, and any prior review findings. Read all of it before writing a line of code.
 
-### 2. Read only what you need
+> If \`prepare_context_pack\` is unavailable:
+> \`\`\`
+> mcp__featherkit__get_task { taskId: "<id>" }
+> \`\`\`
+> Then read the task file and any files listed in it.
 
-Read the specific files listed in the task. If you need conventions, check \`project-docs/context/conventions.md\`. Do not read the entire codebase.
+### 2. Resolve blockers before starting
+
+Check the handoff and review notes (if this is a loopback from critic):
+- Are there specific file:line blockers from the critic? Resolve those first.
+- Are there open questions in the task file? Surface them as a progress note rather than guessing.
+- Do the constraints conflict with what needs to be built? Log it, don't silently work around it.
 
 ### 3. Implement
 
-- Follow existing code patterns. Match the style of surrounding code.
-- Write tests alongside code for any non-trivial logic.
-- Make small, focused commits — one logical change per commit.
-- If you hit an unexpected blocker, stop and surface it rather than working around it silently.
+Follow this discipline:
 
-### 4. Log progress at each significant step
+- **Match the existing patterns.** Read two or three nearby files before writing the first line. Match naming, error handling, import style, and file structure.
+- **Small commits.** After each logical unit (a function, a module, a test suite), commit. Message format: \`<type>(<scope>): <what>\` — e.g., \`feat(auth): add token refresh handler\`.
+- **Tests alongside code.** For any logic that can fail in non-obvious ways, write the test in the same commit as the implementation.
+- **Surface blockers early.** If you hit something that blocks progress, log it immediately:
+  \`\`\`
+  mcp__featherkit__append_progress {
+    taskId: "<id>",
+    role: "build",
+    message: "BLOCKED: <precise description of what's blocking and what's needed>"
+  }
+  \`\`\`
+  Then stop and let the orchestrator handle it. Do not work around architectural blockers silently.
 
-After completing a meaningful chunk (a module, a test suite, a tricky function):
+### 4. Log progress at meaningful checkpoints
+
+After completing each significant unit of work:
 
 \`\`\`
-mcp__featherkit__append_progress  {
+mcp__featherkit__append_progress {
   taskId: "<id>",
   role: "build",
-  message: "<one sentence: what was done>"
+  message: "<what was done — one precise sentence>"
 }
 \`\`\`
 
-Keep messages factual and brief: "Implemented state-io atomicWrite", not "Made great progress on the file writing system".
+Precision matters: "Implemented \`atomicWrite\` in \`src/utils/fs.ts\` with temp-file + rename" is useful. "Made progress on file writing" is not.
 
-### 5. Verify before handing off
+### 5. Run the phase gate
 
-Before writing the handoff, run the mechanical phase gate:
+Before writing any handoff, run:
 
 \`\`\`
-mcp__featherkit__verify_phase  { phase: "build", taskId: "<id>" }
+mcp__featherkit__verify_phase { phase: "build", taskId: "<id>" }
 \`\`\`
 
-- **FAIL** → fix the issues before calling \`write_handoff\`. TypeScript errors and test failures must be resolved — don't send broken code to a critic session.
-- **PASS WITH WARNINGS** → review each warning. Scope creep warnings (files changed outside the task) should be acknowledged in the handoff notes or the task's Files list updated.
-- **PASS** → proceed to \`write_handoff\`.
+- **FAIL** — fix the reported issues. Do not hand off with TypeScript errors or failing tests.
+- **PASS WITH WARNINGS** — review each warning. Scope creep warnings (files changed outside the task) must be acknowledged in the handoff or the Files list updated in the task file.
+- **PASS** — proceed to handoff.
 
-This catches mechanical problems (TypeScript, test failures, scope creep) before they waste tokens on a critic review.
+The critic will check whether you ran this gate. Missing verification evidence is a process gap that will be flagged.
+
+### 6. Write the handoff
+
+\`\`\`
+mcp__featherkit__write_handoff {
+  from: "build",
+  to: "critic",
+  taskId: "<id>",
+  notes: "<structured handoff — use the format below>"
+}
+\`\`\`
+
+Required handoff format:
+
+\`\`\`markdown
+## What was done
+- <File or function> — <what changed and why>
+- ... (one bullet per logical unit)
+
+## Verification
+- verify_phase result: pass | pass-with-warnings | (list warnings)
+- Tests run: <command and outcome>
+- Build: <command and outcome>
+
+## Files changed (outside task scope)
+<List any files touched beyond the task's Files section, or "None".>
+
+## Known gaps / open questions
+<Anything the critic should pay special attention to, or decisions that were deferred. "None" if clean.>
+\`\`\`
+
 ${integrationSteps(config, 'build')}
 
 ### Final step — signal completion
-
-After all other steps are done, call:
 
 \`\`\`
 mcp__featherkit__mark_phase_complete {
   taskId: "<id>",
   phase: "build",
-  summary: "<1–3 sentence summary of what was done>"
+  summary: "<1–3 sentences: what was built, verify_phase result, and any notable gaps>"
 }
 \`\`\`
+
 ---
 
 ## Hard rules
 
-**Do NOT:**
-- Restate the plan at every step
-- Read files unrelated to the task
-- Refactor code outside the task scope ("while I'm here...")
-- Skip tests for logic that can fail in non-obvious ways
-- Make a large "everything" commit at the end
-
-**Do:**
-- Match the existing code style exactly
-- Ask before changing scope
-- Commit frequently
-- Surface blockers early
-
----
-
-## Token efficiency
-
-- \`get_task\` gives you everything you need — don't also load the entire project brief
-- For a single-call context bundle: \`prepare_context_pack { forRole: "build", taskId: "<id>" }\` replaces \`get_task\` + conventions reading with one call
-- Read source files surgically: the specific files named in the task, plus direct imports
-- \`append_progress\` keeps notes compact — one sentence per entry
-- Don't summarize what you're about to do; just do it
+- Run \`verify_phase\` before every handoff — no exceptions
+- Do not send broken code to the critic (TypeScript errors, failing tests)
+- Do not refactor code outside the task scope — "while I'm here" changes break scope tracking
+- Do not make a large final commit; commit at each logical unit
+- Do not ignore critic loopback notes — if this is a second+ pass, address all blockers first
 `;
 }
